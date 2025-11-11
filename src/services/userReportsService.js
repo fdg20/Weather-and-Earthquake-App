@@ -10,6 +10,7 @@ export function saveUserReport(report) {
     id: Date.now().toString(),
     timestamp: new Date().toISOString(),
     imageData: report.imagePreview, // Store base64 image
+    status: 'pending', // Default status: pending or done
   }
   reports.push(newReport)
   localStorage.setItem(STORAGE_KEY, JSON.stringify(reports))
@@ -31,6 +32,24 @@ export function deleteUserReport(reportId) {
   const filtered = reports.filter(r => r.id !== reportId)
   localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered))
   return filtered
+}
+
+export function markReportAsDone(reportId) {
+  const reports = getUserReports()
+  const updated = reports.map(r => 
+    r.id === reportId ? { ...r, status: 'done' } : r
+  )
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
+  return updated
+}
+
+export function updateUserReport(reportId, updates) {
+  const reports = getUserReports()
+  const updated = reports.map(r => 
+    r.id === reportId ? { ...r, ...updates } : r
+  )
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
+  return updated
 }
 
 export function getUserReportsByLocation(lat, lon, radius = 0.1) {

@@ -266,6 +266,16 @@ export async function fetchTyphoons() {
 
 // Try to fetch from multiple typhoon data sources
 async function fetchTyphoonDataFromAPI() {
+  // Try PAGASA data first (Philippines weather agency)
+  try {
+    const pagasaData = await fetchPAGASAData()
+    if (pagasaData && pagasaData.length > 0) {
+      return pagasaData
+    }
+  } catch (error) {
+    console.log('PAGASA fetch failed, trying alternatives:', error)
+  }
+  
   // Try using a CORS proxy for JTWC data
   try {
     // Using a public CORS proxy (you may want to set up your own in production)
@@ -323,6 +333,194 @@ async function fetchTyphoonDataFromAPI() {
   
   // Fall back to enhanced sample data that updates based on current date
   return getSampleTyphoons()
+}
+
+// Fetch typhoon data from PAGASA (Philippine Atmospheric, Geophysical and Astronomical Services Administration)
+async function fetchPAGASAData() {
+  try {
+    // PAGASA doesn't have a public JSON API, so we'll try to scrape their website
+    // Using a CORS proxy to access PAGASA's tropical cyclone bulletins
+    const proxyUrl = 'https://api.allorigins.win/raw?url='
+    
+    // Try PAGASA's tropical cyclone advisory page
+    const pagasaUrls = [
+      'https://www.pagasa.dost.gov.ph/weather/tropical-cyclone-information',
+      'https://www.pagasa.dost.gov.ph/weather/tropical-cyclone-bulletin',
+      'https://pubfiles.pagasa.dost.gov.ph/tamss/weather/bulletin/',
+    ]
+    
+    for (const url of pagasaUrls) {
+      try {
+        const response = await fetch(proxyUrl + encodeURIComponent(url), {
+          method: 'GET',
+          headers: {
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          },
+        })
+        
+        if (response.ok) {
+          const html = await response.text()
+          const parsedData = parsePAGASAHTML(html)
+          if (parsedData && parsedData.length > 0) {
+            return parsedData
+          }
+        }
+      } catch (error) {
+        // Continue to next URL
+        continue
+      }
+    }
+    
+    // Try alternative: Use a public typhoon API that aggregates PAGASA data
+    // Some third-party services aggregate PAGASA data
+    try {
+      const response = await fetch('https://api.typhoon.org/v1/pagasa/active', {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+        },
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        return parsePAGASAAPIData(data)
+      }
+    } catch (error) {
+      // This endpoint may not exist, continue
+    }
+    
+    // If all methods fail, return empty array (no active typhoons)
+    return []
+  } catch (error) {
+    console.error('Error fetching PAGASA data:', error)
+    return []
+  }
+}
+
+// Parse PAGASA HTML content to extract typhoon information
+function parsePAGASAHTML(html) {
+  const typhoons = []
+  const now = new Date()
+  const sevenDaysAgo = now.getTime() - (7 * 24 * 60 * 60 * 1000)
+  
+  // Try to extract typhoon information from HTML
+  // This is a basic parser - PAGASA's HTML structure may vary
+  try {
+    // Look for typhoon names and positions in the HTML
+    // This regex pattern looks for common patterns in PAGASA bulletins
+    const namePattern = /(?:Tropical\s+)?(?:Storm|Depression|Typhoon)\s+([A-Z][a-z]+)/gi
+    const coordPattern = /(\d+\.?\d*)\s*°?\s*[NS]\s*,?\s*(\d+\.?\d*)\s*°?\s*[EW]/gi
+    
+    const names = [...html.matchAll(namePattern)]
+    const coords = [...html.matchAll(coordPattern)]
+    
+    // If we found typhoon names, try to create typhoon objects
+    if (names.length > 0) {
+      names.forEach((match, index) => {
+        const name = match[1]
+        const localName = name // PAGASA uses local names
+        const coord = coords[index] || coords[0]
+        
+        if (coord) {
+          let lat = parseFloat(coord[1])
+          let lon = parseFloat(coord[2])
+          
+          // Adjust based on N/S and E/W indicators
+          if (html.substring(coord.index - 20, coord.index).includes('S')) {
+            lat = -lat
+          }
+          if (html.substring(coord.index - 20, coord.index).includes('W')) {
+            lon = -lon
+          }
+          
+          // Check if inside PAR
+          const isInside = isInsidePAR(lat, lon)
+          
+          // Generate a simple path (last 7 days)
+          const path = []
+          for (let i = 0; i < 7; i++) {
+            const timestamp = sevenDaysAgo + (i * 24 * 60 * 60 * 1000)
+            path.push({
+              lat: lat - (7 - i) * 0.5, // Approximate movement
+              lon: lon - (7 - i) * 0.5,
+              intensity: Math.max(2, 5 - i * 0.3),
+              timestamp
+            })
+          }
+          
+          typhoons.push({
+            id: `pagasa-${index}`,
+            name: name,
+            localName: localName,
+            currentPosition: {
+              lat: lat,
+              lon: lon,
+              intensity: 3,
+              windSpeed: 100,
+            },
+            path: path,
+            isInsidePAR: isInside,
+            displayName: localName,
+            approachingPhilippines: true,
+            distanceToPhilippines: isInside ? 0 : calculateDistance(lat, lon, 12.8797, 121.7740),
+            estimatedArrival: null,
+            lastUpdate: now,
+          })
+        }
+      })
+    }
+  } catch (error) {
+    console.error('Error parsing PAGASA HTML:', error)
+  }
+  
+  return typhoons
+}
+
+// Parse PAGASA API data (if available from third-party aggregator)
+function parsePAGASAAPIData(data) {
+  if (!data || !Array.isArray(data)) {
+    return []
+  }
+  
+  const now = new Date()
+  const philippinesLat = 12.8797
+  const philippinesLon = 121.7740
+  
+  return data.map((storm, index) => {
+    const currentPos = storm.position || storm.currentPosition || { lat: 0, lon: 0 }
+    const path = storm.track || storm.path || []
+    
+    const localName = storm.localName || storm.name || 'Unknown'
+    const isInside = isInsidePAR(currentPos.lat, currentPos.lon)
+    const distance = calculateDistance(
+      currentPos.lat, currentPos.lon,
+      philippinesLat, philippinesLon
+    )
+    
+    return {
+      id: storm.id || `pagasa-${index}`,
+      name: storm.internationalName || storm.name || localName,
+      localName: localName,
+      currentPosition: {
+        lat: currentPos.lat,
+        lon: currentPos.lon,
+        intensity: storm.intensity || storm.category || 2,
+        windSpeed: storm.windSpeed || storm.maxWindSpeed || 0,
+      },
+      path: path.map(point => ({
+        lat: point.lat || point[0],
+        lon: point.lon || point[1],
+        intensity: point.intensity || point.category || 2,
+        timestamp: point.timestamp || point.time || now.getTime(),
+      })),
+      isInsidePAR: isInside,
+      displayName: localName,
+      approachingPhilippines: distance < 2000,
+      distanceToPhilippines: Math.round(distance),
+      estimatedArrival: storm.estimatedArrival ? new Date(storm.estimatedArrival) : null,
+      lastUpdate: storm.lastUpdate ? new Date(storm.lastUpdate) : now,
+    }
+  })
 }
 
 // Try alternative typhoon tracking APIs

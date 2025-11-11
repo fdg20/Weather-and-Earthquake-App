@@ -11,7 +11,7 @@ import UserReportForm from './components/UserReportForm'
 import MapPicker from './components/MapPicker'
 import LowPressureArea from './components/LowPressureArea'
 import { fetchEarthquakes, fetchTyphoons, getLowPressureAreas, fetchWeatherData, fetchWeatherForecast } from './services/dataService'
-import { saveUserReport, getUserReports } from './services/userReportsService'
+import { saveUserReport, getUserReports, deleteUserReport, markReportAsDone } from './services/userReportsService'
 import './App.css'
 
 function App() {
@@ -182,6 +182,10 @@ function App() {
           const y = radius * Math.cos(phi)
           const z = radius * Math.sin(phi) * Math.sin(theta)
           
+          // Color based on status: green for done, red/orange for pending
+          const isDone = report.status === 'done'
+          const pinColor = isDone ? '#00ff00' : '#ff6b6b'
+          
           return (
             <group key={report.id} position={[x, y, z]}>
               <mesh
@@ -199,8 +203,8 @@ function App() {
               >
                 <sphereGeometry args={[0.03, 16, 16]} />
                 <meshStandardMaterial
-                  color="#00ff00"
-                  emissive="#00ff00"
+                  color={pinColor}
+                  emissive={pinColor}
                   emissiveIntensity={1.2}
                 />
               </mesh>
@@ -208,11 +212,11 @@ function App() {
               <Text
                 position={[x * 1.05, y * 1.05, z * 1.05]}
                 fontSize={0.03}
-                color="#00ff00"
+                color={pinColor}
                 anchorX="center"
                 anchorY="middle"
               >
-                📍
+                {isDone ? '✓' : '📍'}
               </Text>
             </group>
           )
@@ -304,7 +308,12 @@ function App() {
         <div className="report-popup-overlay" onClick={() => setSelectedReport(null)}>
           <div className="report-popup" onClick={(e) => e.stopPropagation()}>
             <button className="close-button" onClick={() => setSelectedReport(null)}>×</button>
-            <h3>📍 {selectedReport.name || 'User Report'}</h3>
+            <h3>
+              {selectedReport.status === 'done' ? '✓' : '📍'} {selectedReport.name || 'User Report'}
+              {selectedReport.status === 'done' && (
+                <span style={{ marginLeft: '8px', color: '#00ff00', fontSize: '0.8em' }}>(Done)</span>
+              )}
+            </h3>
             <div style={{ marginBottom: '16px', paddingBottom: '16px', borderBottom: '1px solid #eee' }}>
               <p><strong>📍 Location:</strong></p>
               <p style={{ marginLeft: '16px' }}>
@@ -335,6 +344,53 @@ function App() {
               <p><small style={{ color: '#888' }}>
                 📅 Reported: {new Date(selectedReport.timestamp).toLocaleString()}
               </small></p>
+            </div>
+            <div style={{ marginTop: '16px', display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              {selectedReport.status !== 'done' && (
+                <button
+                  onClick={() => {
+                    markReportAsDone(selectedReport.id)
+                    const updated = getUserReports()
+                    setUserReports(updated)
+                    const updatedReport = updated.find(r => r.id === selectedReport.id)
+                    setSelectedReport(updatedReport || null)
+                    alert('Report marked as done!')
+                  }}
+                  style={{
+                    padding: '8px 16px',
+                    background: '#00ff00',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontWeight: 'bold'
+                  }}
+                >
+                  ✓ Mark as Done
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  if (window.confirm('Are you sure you want to delete this report?')) {
+                    deleteUserReport(selectedReport.id)
+                    const updated = getUserReports()
+                    setUserReports(updated)
+                    setSelectedReport(null)
+                    alert('Report deleted!')
+                  }
+                }}
+                style={{
+                  padding: '8px 16px',
+                  background: '#ff6b6b',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold'
+                }}
+              >
+                🗑️ Delete
+              </button>
             </div>
           </div>
         </div>

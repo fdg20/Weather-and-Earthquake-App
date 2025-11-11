@@ -1,5 +1,27 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet'
+import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
 import './UserReportForm.css'
+
+// Fix for default marker icons
+delete L.Icon.Default.prototype._getIconUrl
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+})
+
+// Component to handle map clicks
+function MapClickHandler({ onLocationSelect }) {
+  useMapEvents({
+    click: (e) => {
+      const { lat, lng } = e.latlng
+      onLocationSelect(lat, lng)
+    },
+  })
+  return null
+}
 
 function UserReportForm({ onClose, onSubmit, onLocationSelect }) {
   const [formData, setFormData] = useState({
@@ -14,7 +36,8 @@ function UserReportForm({ onClose, onSubmit, onLocationSelect }) {
     lon: null,
   })
 
-  const [showMapPicker, setShowMapPicker] = useState(false)
+  const [mapCenter, setMapCenter] = useState([12.8797, 121.7740]) // Default to Philippines center
+  const [locationError, setLocationError] = useState(null)
 
   const providers = [
     'PLDT',
@@ -61,16 +84,49 @@ function UserReportForm({ onClose, onSubmit, onLocationSelect }) {
     }
   }
 
-  const handleMapClick = () => {
-    if (onLocationSelect) {
-      onLocationSelect((lat, lon) => {
-        setFormData(prev => ({
-          ...prev,
-          lat,
-          lon
-        }))
-      })
+  // Get user's current location on mount
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const lat = position.coords.latitude
+          const lon = position.coords.longitude
+          setMapCenter([lat, lon])
+          setLocationError(null)
+          // Auto-select current location if not already set
+          setFormData(prev => {
+            if (!prev.lat || !prev.lon) {
+              return {
+                ...prev,
+                lat,
+                lon
+              }
+            }
+            return prev
+          })
+        },
+        (error) => {
+          console.error('Error getting location:', error)
+          setLocationError('Unable to get your location. Please select manually on the map.')
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
+        }
+      )
+    } else {
+      setLocationError('Geolocation is not supported by your browser.')
     }
+  }, [])
+
+  const handleMapLocationSelect = (lat, lon) => {
+    setFormData(prev => ({
+      ...prev,
+      lat,
+      lon
+    }))
+    setLocationError(null)
   }
 
   const handleSubmit = (e) => {
@@ -199,16 +255,73 @@ function UserReportForm({ onClose, onSubmit, onLocationSelect }) {
           </div>
 
           <div className="form-group">
-            <label>Pin Location on Map</label>
-            <button
-              type="button"
-              onClick={handleMapClick}
-              className="map-picker-button"
-            >
-              📍 {formData.lat && formData.lon 
-                ? `Location: ${formData.lat.toFixed(4)}°N, ${formData.lon.toFixed(4)}°E`
-                : 'Click to Select Location on Map'}
-            </button>
+            <label>📍 Pin Location on Map</label>
+            <p style={{ fontSize: '12px', color: '#666', marginBottom: '8px' }}>
+              Click on the map below to select your precise location
+            </p>
+            {locationError && (
+              <div style={{ 
+                padding: '8px', 
+                background: '#fff3cd', 
+                color: '#856404',
+                fontSize: '12px',
+                borderRadius: '4px',
+                marginBottom: '8px'
+              }}>
+                ⚠️ {locationError}
+              </div>
+            )}
+            {formData.lat && formData.lon && (
+              <div style={{ 
+                padding: '8px', 
+                background: '#d4edda', 
+                color: '#155724',
+                fontSize: '12px',
+                borderRadius: '4px',
+                marginBottom: '8px'
+              }}>
+                ✓ Selected: {formData.lat.toFixed(6)}°N, {formData.lon.toFixed(6)}°E
+              </div>
+            )}
+            <div style={{ height: '300px', width: '100%', borderRadius: '8px', overflow: 'hidden', border: '2px solid #ddd' }}>
+              <MapContainer
+                center={formData.lat && formData.lon ? [formData.lat, formData.lon] : mapCenter}
+                zoom={formData.lat && formData.lon ? 15 : 6}
+                style={{ height: '100%', width: '100%' }}
+                scrollWheelZoom={true}
+              >
+                <TileLayer
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+                
+                <MapClickHandler onLocationSelect={handleMapLocationSelect} />
+                
+                {formData.lat && formData.lon && (
+                  <Marker
+                    position={[formData.lat, formData.lon]}
+                    icon={L.divIcon({
+                      className: 'custom-draggable-marker',
+                      html: `<div style="
+                        width: 40px;
+                        height: 40px;
+                        background: #d32f2f;
+                        border: 3px solid white;
+                        border-radius: 50%;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        font-size: 20px;
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                        cursor: pointer;
+                      ">📍</div>`,
+                      iconSize: [40, 40],
+                      iconAnchor: [20, 40],
+                    })}
+                  />
+                )}
+              </MapContainer>
+            </div>
           </div>
 
           <div className="form-actions">
