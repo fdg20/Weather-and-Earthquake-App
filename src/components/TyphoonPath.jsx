@@ -106,21 +106,31 @@ function TyphoonPath({ typhoon, selected, onSelect, onPathClick }) {
         />
       )}
       
-      {/* Path points */}
+      {/* Path points with enhanced cyclone visuals */}
       {typhoon.path.map((point, index) => {
         const pos = latLonToVector3(point.lat, point.lon)
+        // Add cyclone effect to significant points
+        const showCyclone = point.intensity >= 3 || index === typhoon.path.length - 1
         return (
-          <Sphere
-            key={index}
-            position={pos}
-            args={[0.01, 8, 8]}
-          >
-            <meshStandardMaterial
-              color={point.intensity >= 4 ? "#ff0000" : point.intensity >= 3 ? "#ff8800" : "#ffff00"}
-              emissive={point.intensity >= 4 ? "#ff0000" : point.intensity >= 3 ? "#ff8800" : "#ffff00"}
-              emissiveIntensity={0.5}
-            />
-          </Sphere>
+          <group key={index}>
+            {showCyclone && (
+              <CycloneEffect
+                position={pos}
+                intensity={point.intensity}
+                rotationSpeed={0.015 + (point.intensity * 0.005)}
+              />
+            )}
+            <Sphere
+              position={pos}
+              args={[0.01, 8, 8]}
+            >
+              <meshStandardMaterial
+                color={point.intensity >= 4 ? "#ff0000" : point.intensity >= 3 ? "#ff8800" : "#ffff00"}
+                emissive={point.intensity >= 4 ? "#ff0000" : point.intensity >= 3 ? "#ff8800" : "#ffff00"}
+                emissiveIntensity={0.5}
+              />
+            </Sphere>
+          </group>
         )
       })}
       

@@ -30,11 +30,12 @@ function Globe() {
     })
   }, [earthTexture, earthBumpMap, earthSpecularMap])
 
-  useFrame(() => {
-    if (meshRef.current) {
-      meshRef.current.rotation.y += 0.001
-    }
-  })
+  // Globe rotation stopped - events are pinned to globe
+  // useFrame(() => {
+  //   if (meshRef.current) {
+  //     meshRef.current.rotation.y += 0.001
+  //   }
+  // })
 
   return (
     <mesh ref={meshRef} geometry={geometry} material={material} />

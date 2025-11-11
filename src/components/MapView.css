@@ -98,5 +98,14 @@
   .map-view-header h2 {
     font-size: 18px;
   }
+
+  .map-view-content {
+    min-height: calc(100vh - 120px);
+  }
+
+  .map-view-footer {
+    padding: 10px 16px;
+    font-size: 12px;
+  }
 }
 

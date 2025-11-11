@@ -14,6 +14,9 @@ function ControlPanel({
   onToggleEarthquakes,
   onShowMapView,
   onShowEarthquakeMapView,
+  onShowReportForm,
+  philippinesTyphoons = [],
+  userReportsCount = 0,
   loading = false,
   lastUpdate = null,
   autoRefresh = true,
@@ -24,6 +27,34 @@ function ControlPanel({
     <div className="control-panel">
       <div className="panel-section">
         <h2>Typhoon & Earthquake Visualization</h2>
+        
+        {/* Philippines Alert */}
+        {philippinesTyphoons.length > 0 && (
+          <div className="philippines-alert">
+            <div className="alert-icon">⚠️</div>
+            <div className="alert-content">
+              <strong>Philippines Alert:</strong> {philippinesTyphoons.length} typhoon{philippinesTyphoons.length > 1 ? 's' : ''} approaching
+              {philippinesTyphoons.map(typhoon => (
+                <div key={typhoon.id} className="alert-typhoon">
+                  {typhoon.name}: {typhoon.distanceToPhilippines}km away, ETA: {new Date(typhoon.estimatedArrival).toLocaleDateString()}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Report Issue Button */}
+        {onShowReportForm && (
+          <button className="report-button" onClick={onShowReportForm}>
+            📋 Report Issue (Philippines)
+          </button>
+        )}
+
+        {userReportsCount > 0 && (
+          <div className="user-reports-count">
+            📍 {userReportsCount} user report{userReportsCount > 1 ? 's' : ''} submitted
+          </div>
+        )}
         
         {/* Real-time status */}
         <div className="status-section">

@@ -7,7 +7,11 @@ import EarthquakeMarkers from './components/EarthquakeMarkers'
 import ControlPanel from './components/ControlPanel'
 import MapView from './components/MapView'
 import EarthquakeMapView from './components/EarthquakeMapView'
-import { fetchEarthquakes, fetchTyphoons } from './services/dataService'
+import UserReportForm from './components/UserReportForm'
+import MapPicker from './components/MapPicker'
+import LowPressureArea from './components/LowPressureArea'
+import { fetchEarthquakes, fetchTyphoons, getLowPressureAreas } from './services/dataService'
+import { saveUserReport, getUserReports } from './services/userReportsService'
 import './App.css'
 
 function App() {
@@ -19,10 +23,15 @@ function App() {
   const [mapViewTyphoon, setMapViewTyphoon] = useState(null)
   const [showEarthquakeMapView, setShowEarthquakeMapView] = useState(false)
   const [mapViewEarthquake, setMapViewEarthquake] = useState(null)
+  const [showReportForm, setShowReportForm] = useState(false)
+  const [showMapPicker, setShowMapPicker] = useState(false)
+  const [selectedReport, setSelectedReport] = useState(null)
   
   // Real-time data states
   const [typhoons, setTyphoons] = useState([])
   const [earthquakes, setEarthquakes] = useState([])
+  const [lowPressureAreas, setLowPressureAreas] = useState([])
+  const [userReports, setUserReports] = useState([])
   const [loading, setLoading] = useState(true)
   const [lastUpdate, setLastUpdate] = useState(null)
   const [autoRefresh, setAutoRefresh] = useState(true)
@@ -39,12 +48,32 @@ function App() {
       
       setTyphoons(typhoonData)
       setEarthquakes(earthquakeData)
+      setLowPressureAreas(getLowPressureAreas())
+      setUserReports(getUserReports())
       setLastUpdate(new Date())
     } catch (error) {
       console.error('Error loading data:', error)
     } finally {
       setLoading(false)
     }
+  }
+
+  // Load user reports on mount
+  useEffect(() => {
+    setUserReports(getUserReports())
+  }, [])
+
+  // Handle user report submission
+  const handleReportSubmit = (reportData) => {
+    const savedReport = saveUserReport(reportData)
+    setUserReports([...userReports, savedReport])
+    alert('Report submitted successfully! Thank you for your contribution.')
+  }
+
+  // Handle location selection for report form
+  const handleLocationSelect = (lat, lon) => {
+    // This will be handled by the MapPicker component
+    return { lat, lon }
   }
 
   // Initial load
@@ -63,9 +92,36 @@ function App() {
     return () => clearInterval(interval)
   }, [autoRefresh, refreshInterval])
 
+  // Handle window resize for mobile
+  useEffect(() => {
+    const handleResize = () => {
+      // Force canvas resize on mobile orientation change
+      if (window.innerWidth <= 768) {
+        window.dispatchEvent(new Event('resize'))
+      }
+    }
+
+    window.addEventListener('resize', handleResize)
+    window.addEventListener('orientationchange', handleResize)
+
+    return () => {
+      window.removeEventListener('resize', handleResize)
+      window.removeEventListener('orientationchange', handleResize)
+    }
+  }, [])
+
   return (
     <div className="app-container">
-      <Canvas camera={{ position: [0, 0, 5], fov: 50 }}>
+      <Canvas 
+        camera={{ position: [0, 0, 5], fov: 50 }}
+        gl={{ 
+          antialias: true,
+          alpha: false,
+          powerPreference: "high-performance",
+          preserveDrawingBuffer: false
+        }}
+        dpr={[1, Math.min(window.devicePixelRatio || 1, 2)]}
+      >
         <ambientLight intensity={0.5} />
         <pointLight position={[10, 10, 10]} />
         <Stars radius={300} depth={60} count={5000} factor={7} fade speed={1} />
@@ -96,6 +152,64 @@ function App() {
             }}
           />
         )}
+
+        {/* Low Pressure Areas */}
+        {lowPressureAreas.map((area, index) => {
+          const phi = (90 - area.lat) * (Math.PI / 180)
+          const theta = (area.lon + 180) * (Math.PI / 180)
+          const radius = 1.015
+          const x = -(radius * Math.sin(phi) * Math.cos(theta))
+          const y = radius * Math.cos(phi)
+          const z = radius * Math.sin(phi) * Math.sin(theta)
+          
+          return (
+            <LowPressureArea
+              key={`lpa-${index}`}
+              position={[x, y, z]}
+              intensity={area.intensity}
+            />
+          )
+        })}
+
+        {/* User Report Markers */}
+        {userReports.map((report) => {
+          if (!report.lat || !report.lon) return null
+          const phi = (90 - report.lat) * (Math.PI / 180)
+          const theta = (report.lon + 180) * (Math.PI / 180)
+          const radius = 1.02
+          const x = -(radius * Math.sin(phi) * Math.cos(theta))
+          const y = radius * Math.cos(phi)
+          const z = radius * Math.sin(phi) * Math.sin(theta)
+          
+          return (
+            <group key={report.id} position={[x, y, z]}>
+              <mesh
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setSelectedReport(report)
+                }}
+                onPointerOver={(e) => {
+                  e.stopPropagation()
+                  if (window.innerWidth > 768) {
+                    document.body.style.cursor = 'pointer'
+                  }
+                }}
+                onPointerOut={() => {
+                  if (window.innerWidth > 768) {
+                    document.body.style.cursor = 'auto'
+                  }
+                }}
+              >
+                <sphereGeometry args={[0.02, 16, 16]} />
+                <meshStandardMaterial
+                  color="#00ff00"
+                  emissive="#00ff00"
+                  emissiveIntensity={0.8}
+                />
+              </mesh>
+            </group>
+          )
+        })}
         
         <OrbitControls
           enablePan={true}
@@ -103,6 +217,20 @@ function App() {
           enableRotate={true}
           minDistance={2}
           maxDistance={10}
+          zoomSpeed={1.2}
+          panSpeed={0.8}
+          rotateSpeed={0.5}
+          enableDamping={true}
+          dampingFactor={0.05}
+          touches={{
+            ONE: 2, // Rotate
+            TWO: 1  // Zoom
+          }}
+          mouseButtons={{
+            LEFT: 0, // Rotate
+            MIDDLE: 1, // Zoom
+            RIGHT: 2 // Pan
+          }}
         />
       </Canvas>
 
@@ -130,7 +258,57 @@ function App() {
         autoRefresh={autoRefresh}
         onToggleAutoRefresh={setAutoRefresh}
         onRefresh={loadData}
+        onShowReportForm={() => setShowReportForm(true)}
+        philippinesTyphoons={typhoons.filter(t => t.approachingPhilippines)}
+        userReportsCount={userReports.length}
       />
+
+      {showReportForm && (
+        <UserReportForm
+          onClose={() => setShowReportForm(false)}
+          onSubmit={handleReportSubmit}
+          onLocationSelect={(callback) => {
+            setShowMapPicker(true)
+            // Store callback for when map picker closes
+            window.mapPickerCallback = callback
+          }}
+        />
+      )}
+
+      {showMapPicker && (
+        <MapPicker
+          onLocationSelect={(lat, lon) => {
+            if (window.mapPickerCallback) {
+              window.mapPickerCallback(lat, lon)
+              window.mapPickerCallback = null
+            }
+            setShowMapPicker(false)
+          }}
+          onClose={() => {
+            setShowMapPicker(false)
+            window.mapPickerCallback = null
+          }}
+        />
+      )}
+
+      {selectedReport && (
+        <div className="report-popup-overlay" onClick={() => setSelectedReport(null)}>
+          <div className="report-popup" onClick={(e) => e.stopPropagation()}>
+            <button className="close-button" onClick={() => setSelectedReport(null)}>×</button>
+            <h3>{selectedReport.name}</h3>
+            <p><strong>Address:</strong> {selectedReport.address}</p>
+            <p><strong>Issue:</strong> {selectedReport.issueType}</p>
+            {selectedReport.provider && <p><strong>Provider:</strong> {selectedReport.provider}</p>}
+            {selectedReport.description && <p><strong>Description:</strong> {selectedReport.description}</p>}
+            {selectedReport.imagePreview && (
+              <div className="report-image">
+                <img src={selectedReport.imagePreview} alt="Report" />
+              </div>
+            )}
+            <p><small>Reported: {new Date(selectedReport.timestamp).toLocaleString()}</small></p>
+          </div>
+        </div>
+      )}
 
       {showMapView && mapViewTyphoon && (
         <MapView

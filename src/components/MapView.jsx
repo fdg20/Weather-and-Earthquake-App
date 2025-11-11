@@ -119,15 +119,44 @@ function MapView({ typhoon, onClose }) {
         map: map,
         title: `${typhoon.name} - Current Position`,
         icon: {
-          url: 'http://maps.google.com/mapfiles/ms/icons/red-dot.png',
-          scaledSize: new window.google.maps.Size(40, 40)
+          url: 'http://maps.google.com/mapfiles/ms/icons/red-pushpin.png',
+          scaledSize: new window.google.maps.Size(40, 40),
+          anchor: new window.google.maps.Point(20, 40)
         },
-        animation: window.google.maps.Animation.BOUNCE
+        animation: window.google.maps.Animation.DROP
+      })
+
+      // Add InfoWindow for current position marker
+      const currentInfoWindow = new window.google.maps.InfoWindow({
+        content: `
+          <div style="padding: 15px; min-width: 250px;">
+            <h3 style="margin: 0 0 15px 0; color: #d32f2f; font-size: 18px;">
+              🌀 ${typhoon.name}
+            </h3>
+            <div style="line-height: 1.8;">
+              <p style="margin: 8px 0;"><strong>Current Position:</strong></p>
+              <p style="margin: 8px 0;">Lat: ${typhoon.currentPosition.lat.toFixed(4)}°</p>
+              <p style="margin: 8px 0;">Lon: ${typhoon.currentPosition.lon.toFixed(4)}°</p>
+              <p style="margin: 8px 0;"><strong>Intensity:</strong> Category ${typhoon.currentPosition.intensity || typhoon.path[typhoon.path.length - 1]?.intensity || 'N/A'}</p>
+              <p style="margin: 8px 0;"><strong>Wind Speed:</strong> ${typhoon.currentPosition.windSpeed || 'N/A'} km/h</p>
+              <p style="margin: 8px 0;"><strong>Status:</strong> <span style="color: #d32f2f;">Active</span></p>
+            </div>
+          </div>
+        `
+      })
+
+      // Open InfoWindow automatically for current position
+      currentInfoWindow.open(map, currentMarker)
+
+      // Add click listener to reopen InfoWindow
+      currentMarker.addListener('click', () => {
+        currentInfoWindow.open(map, currentMarker)
       })
 
       // Fit bounds to show entire path
       const bounds = new window.google.maps.LatLngBounds()
       pathCoordinates.forEach(coord => bounds.extend(coord))
+      bounds.extend({ lat: typhoon.currentPosition.lat, lng: typhoon.currentPosition.lon })
       map.fitBounds(bounds)
     }
 

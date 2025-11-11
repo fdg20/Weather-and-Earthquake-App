@@ -82,38 +82,57 @@ async function fetchTyphoonDataFromAPI() {
   return getSampleTyphoons()
 }
 
-// Sample typhoon data (enhanced with realistic paths)
+// Sample typhoon data (enhanced with realistic paths, Philippines-focused)
 function getSampleTyphoons() {
   const now = new Date()
   const baseTime = now.getTime() - 5 * 24 * 60 * 60 * 1000 // 5 days ago
+  
+  // Philippines coordinates: ~12°N, 123°E (center)
+  const philippinesLat = 12.8797
+  const philippinesLon = 121.7740
   
   return [
     {
       id: 1,
       name: 'Typhoon Mawar',
       path: [
-        { lat: 10, lon: 140, intensity: 5, timestamp: baseTime },
-        { lat: 12, lon: 138, intensity: 5, timestamp: baseTime + 24 * 3600000 },
-        { lat: 15, lon: 135, intensity: 4, timestamp: baseTime + 48 * 3600000 },
-        { lat: 18, lon: 132, intensity: 4, timestamp: baseTime + 72 * 3600000 },
-        { lat: 22, lon: 128, intensity: 3, timestamp: baseTime + 96 * 3600000 },
-        { lat: 25, lon: 125, intensity: 2, timestamp: baseTime + 120 * 3600000 },
+        { lat: 8, lon: 140, intensity: 5, timestamp: baseTime },
+        { lat: 10, lon: 138, intensity: 5, timestamp: baseTime + 24 * 3600000 },
+        { lat: 12, lon: 135, intensity: 4, timestamp: baseTime + 48 * 3600000 },
+        { lat: 14, lon: 132, intensity: 4, timestamp: baseTime + 72 * 3600000 },
+        { lat: 15.5, lon: 128, intensity: 3, timestamp: baseTime + 96 * 3600000 }, // Approaching Philippines
+        { lat: 16, lon: 125, intensity: 2, timestamp: baseTime + 120 * 3600000 }, // Over Philippines
       ],
-      currentPosition: { lat: 15, lon: 135 },
-      lastUpdate: new Date(baseTime + 48 * 3600000),
+      currentPosition: { lat: 14, lon: 132 },
+      lastUpdate: new Date(baseTime + 72 * 3600000),
+      approachingPhilippines: true,
+      distanceToPhilippines: 350, // km
+      estimatedArrival: new Date(now.getTime() + 2 * 24 * 3600000), // 2 days
     },
     {
       id: 2,
       name: 'Typhoon Guchol',
       path: [
-        { lat: 8, lon: 145, intensity: 4, timestamp: baseTime + 12 * 3600000 },
-        { lat: 10, lon: 142, intensity: 4, timestamp: baseTime + 36 * 3600000 },
+        { lat: 9, lon: 145, intensity: 4, timestamp: baseTime + 12 * 3600000 },
+        { lat: 11, lon: 142, intensity: 4, timestamp: baseTime + 36 * 3600000 },
         { lat: 13, lon: 139, intensity: 3, timestamp: baseTime + 60 * 3600000 },
-        { lat: 16, lon: 136, intensity: 2, timestamp: baseTime + 84 * 3600000 },
+        { lat: 14.5, lon: 136, intensity: 2, timestamp: baseTime + 84 * 3600000 },
       ],
       currentPosition: { lat: 13, lon: 139 },
       lastUpdate: new Date(baseTime + 60 * 3600000),
+      approachingPhilippines: true,
+      distanceToPhilippines: 800, // km
+      estimatedArrival: new Date(now.getTime() + 4 * 24 * 3600000), // 4 days
     },
+  ]
+}
+
+// Get low pressure areas (simulated - in production, use weather API)
+export function getLowPressureAreas() {
+  return [
+    { lat: 13.5, lon: 123.5, intensity: 0.7, name: 'Low Pressure Area 1' },
+    { lat: 11.2, lon: 125.8, intensity: 0.5, name: 'Low Pressure Area 2' },
+    { lat: 15.8, lon: 120.2, intensity: 0.6, name: 'Low Pressure Area 3' },
   ]
 }
 
