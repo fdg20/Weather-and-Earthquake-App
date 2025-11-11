@@ -1,12 +1,83 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useState } from 'react'
+import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet'
+import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
 import './MapView.css'
 
+// Fix for default marker icons
+delete L.Icon.Default.prototype._getIconUrl
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+})
+
+// Component to handle map clicks
+function MapClickHandler({ onLocationSelect }) {
+  useMapEvents({
+    click: (e) => {
+      const { lat, lng } = e.latlng
+      onLocationSelect(lat, lng)
+    },
+  })
+  return null
+}
+
+// Component for draggable marker
+function DraggableMarker({ position, onDragEnd }) {
+  const [currentPosition, setCurrentPosition] = useState(position)
+
+  const markerRef = React.useRef(null)
+
+  useEffect(() => {
+    setCurrentPosition(position)
+  }, [position])
+
+  const eventHandlers = {
+    dragend: () => {
+      const marker = markerRef.current
+      if (marker != null) {
+        const newPosition = marker.getLatLng()
+        setCurrentPosition(newPosition)
+        onDragEnd(newPosition.lat, newPosition.lng)
+      }
+    },
+  }
+
+  return (
+    <Marker
+      draggable={true}
+      position={currentPosition}
+      ref={markerRef}
+      eventHandlers={eventHandlers}
+      icon={L.divIcon({
+        className: 'custom-draggable-marker',
+        html: `<div style="
+          width: 40px;
+          height: 40px;
+          background: #d32f2f;
+          border: 3px solid white;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 20px;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+          cursor: move;
+        ">📍</div>`,
+        iconSize: [40, 40],
+        iconAnchor: [20, 40],
+      })}
+    >
+      <Popup>Drag to select location</Popup>
+    </Marker>
+  )
+}
+
 function MapPicker({ onLocationSelect, onClose, initialLat = null, initialLon = null }) {
-  const mapRef = useRef(null)
-  const markerRef = useRef(null)
-  const mapInstanceRef = useRef(null)
   const [currentLocation, setCurrentLocation] = useState(null)
   const [locationError, setLocationError] = useState(null)
+  const [selectedPosition, setSelectedPosition] = useState(null)
 
   // Get user's current location
   useEffect(() => {
@@ -17,12 +88,22 @@ function MapPicker({ onLocationSelect, onClose, initialLat = null, initialLon = 
           const lon = position.coords.longitude
           setCurrentLocation({ lat, lon })
           setLocationError(null)
+          const startPos = { lat: lat, lon: lon }
+          setSelectedPosition(startPos)
+          if (onLocationSelect) {
+            onLocationSelect(lat, lon)
+          }
         },
         (error) => {
           console.error('Error getting location:', error)
           setLocationError('Unable to get your location. Please select manually.')
           // Default to Philippines center if location access fails
-          setCurrentLocation({ lat: 12.8797, lon: 121.7740 })
+          const defaultPos = { lat: initialLat || 12.8797, lon: initialLon || 121.7740 }
+          setCurrentLocation(defaultPos)
+          setSelectedPosition(defaultPos)
+          if (onLocationSelect) {
+            onLocationSelect(defaultPos.lat, defaultPos.lon)
+          }
         },
         {
           enableHighAccuracy: true,
@@ -32,169 +113,27 @@ function MapPicker({ onLocationSelect, onClose, initialLat = null, initialLon = 
       )
     } else {
       setLocationError('Geolocation is not supported by your browser.')
-      setCurrentLocation({ lat: initialLat || 12.8797, lon: initialLon || 121.7740 })
-    }
-  }, [])
-
-  useEffect(() => {
-    let script = null
-    let timeoutId = null
-
-    function initializeMap() {
-      if (!mapRef.current) return
-
-      const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || 'YOUR_API_KEY_HERE'
-
-      // Use current location if available, otherwise use initial or default
-      const startLat = currentLocation?.lat || initialLat || 12.8797
-      const startLon = currentLocation?.lon || initialLon || 121.7740
-
-      const map = new window.google.maps.Map(mapRef.current, {
-        zoom: 15, // Higher zoom for better location visualization
-        center: { lat: startLat, lng: startLon },
-        mapTypeId: 'satellite', // Satellite view like Google Earth
-        mapTypeControl: true,
-        streetViewControl: false,
-        fullscreenControl: true,
-        zoomControl: true,
-      })
-
-      mapInstanceRef.current = map
-
-      // Create draggable marker
-      const marker = new window.google.maps.Marker({
-        position: { lat: startLat, lng: startLon },
-        map: map,
-        draggable: true,
-        title: 'Drag to select location',
-        animation: window.google.maps.Animation.DROP,
-        icon: {
-          url: 'http://maps.google.com/mapfiles/ms/icons/red-pushpin.png',
-          scaledSize: new window.google.maps.Size(40, 40),
-          anchor: new window.google.maps.Point(20, 40)
-        }
-      })
-
-      markerRef.current = marker
-
-      // Add current location marker if available
-      if (currentLocation && !locationError) {
-        const currentLocationMarker = new window.google.maps.Marker({
-          position: { lat: currentLocation.lat, lng: currentLocation.lon },
-          map: map,
-          title: 'Your Current Location',
-          icon: {
-            url: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png',
-            scaledSize: new window.google.maps.Size(32, 32)
-          },
-          animation: window.google.maps.Animation.BOUNCE
-        })
-
-        // Show info window for current location
-        const infoWindow = new window.google.maps.InfoWindow({
-          content: `
-            <div style="padding: 8px;">
-              <strong>Your Current Location</strong><br/>
-              ${currentLocation.lat.toFixed(6)}°N, ${currentLocation.lon.toFixed(6)}°E
-            </div>
-          `
-        })
-        infoWindow.open(map, currentLocationMarker)
-      }
-
-      // Update location when marker is dragged
-      marker.addListener('dragend', () => {
-        const position = marker.getPosition()
-        if (onLocationSelect) {
-          onLocationSelect(position.lat(), position.lng())
-        }
-      })
-
-      // Also allow clicking on map to set location
-      map.addListener('click', (e) => {
-        const lat = e.latLng.lat()
-        const lng = e.latLng.lng()
-        marker.setPosition({ lat, lng })
-        if (onLocationSelect) {
-          onLocationSelect(lat, lng)
-        }
-      })
-
-      // Initial callback
+      const defaultPos = { lat: initialLat || 12.8797, lon: initialLon || 121.7740 }
+      setCurrentLocation(defaultPos)
+      setSelectedPosition(defaultPos)
       if (onLocationSelect) {
-        onLocationSelect(startLat, startLon)
+        onLocationSelect(defaultPos.lat, defaultPos.lon)
       }
     }
+  }, [initialLat, initialLon, onLocationSelect])
 
-    // Only initialize map when we have a location (current or default)
-    if (!currentLocation) return
+  const handleLocationSelect = (lat, lon) => {
+    setSelectedPosition({ lat, lon })
+    if (onLocationSelect) {
+      onLocationSelect(lat, lon)
+    }
+  }
 
-    let isMounted = true
-    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || 'YOUR_API_KEY_HERE'
-    
-    if (!apiKey || apiKey === 'YOUR_API_KEY_HERE') {
-      console.warn('Google Maps API key not configured')
-      return
-    }
+  if (!selectedPosition) {
+    return <div>Loading map...</div>
+  }
 
-    // Check if Google Maps is already loaded
-    if (window.google && window.google.maps) {
-      initializeMap()
-      return
-    }
-
-    // Check if script is already being loaded
-    const existingScript = document.querySelector('script[src*="maps.googleapis.com"]')
-    if (existingScript) {
-      const onLoad = () => {
-        if (isMounted) initializeMap()
-      }
-      
-      if (existingScript.dataset.loaded === 'true') {
-        initializeMap()
-      } else {
-        existingScript.addEventListener('load', onLoad)
-      }
-      
-      return () => {
-        existingScript.removeEventListener('load', onLoad)
-        isMounted = false
-      }
-    }
-    
-    script = document.createElement('script')
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=drawing`
-    script.async = true
-    script.defer = true
-    
-    script.onload = () => {
-      if (script) script.dataset.loaded = 'true'
-      clearTimeout(timeoutId)
-      if (isMounted) initializeMap()
-    }
-    
-    script.onerror = () => {
-      clearTimeout(timeoutId)
-      console.error('Failed to load Google Maps')
-    }
-    
-    document.head.appendChild(script)
-    
-    timeoutId = setTimeout(() => {
-      if (isMounted && (!window.google || !window.google.maps)) {
-        console.error('Failed to load Google Maps - timeout')
-      }
-    }, 10000)
-
-    return () => {
-      isMounted = false
-      if (timeoutId) clearTimeout(timeoutId)
-      if (script) {
-        script.onload = null
-        script.onerror = null
-      }
-    }
-  }, [currentLocation, initialLat, initialLon, onLocationSelect, locationError])
+  const center = [selectedPosition.lat, selectedPosition.lon]
 
   return (
     <div className="map-view-overlay" onClick={onClose}>
@@ -214,7 +153,7 @@ function MapPicker({ onLocationSelect, onClose, initialLat = null, initialLon = 
             ⚠️ {locationError}
           </div>
         )}
-        {currentLocation && (
+        {currentLocation && !locationError && (
           <div style={{ 
             padding: '8px 24px', 
             background: '#d4edda', 
@@ -225,7 +164,53 @@ function MapPicker({ onLocationSelect, onClose, initialLat = null, initialLon = 
             📍 Showing your current location. Drag the red pin to adjust if needed.
           </div>
         )}
-        <div ref={mapRef} className="map-view-content" style={{ height: '500px' }} />
+        <div style={{ height: '500px', width: '100%' }}>
+          <MapContainer
+            center={center}
+            zoom={15}
+            style={{ height: '100%', width: '100%' }}
+            scrollWheelZoom={true}
+          >
+            <TileLayer
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
+            
+            <MapClickHandler onLocationSelect={handleLocationSelect} />
+            
+            <DraggableMarker
+              position={center}
+              onDragEnd={handleLocationSelect}
+            />
+
+            {currentLocation && !locationError && (
+              <Marker
+                position={[currentLocation.lat, currentLocation.lon]}
+                icon={L.divIcon({
+                  className: 'custom-current-location-marker',
+                  html: `<div style="
+                    width: 32px;
+                    height: 32px;
+                    background: #2196F3;
+                    border: 2px solid white;
+                    border-radius: 50%;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                    animation: pulse 2s infinite;
+                  "></div>`,
+                  iconSize: [32, 32],
+                  iconAnchor: [16, 16],
+                })}
+              >
+                <Popup>
+                  <div style={{ padding: '8px' }}>
+                    <strong>Your Current Location</strong><br/>
+                    {currentLocation.lat.toFixed(6)}°N, {currentLocation.lon.toFixed(6)}°E
+                  </div>
+                </Popup>
+              </Marker>
+            )}
+          </MapContainer>
+        </div>
         <div className="map-view-footer">
           <p>Drag the red marker or click on the map to select your exact location where you need help</p>
         </div>
@@ -235,4 +220,3 @@ function MapPicker({ onLocationSelect, onClose, initialLat = null, initialLon = 
 }
 
 export default MapPicker
-

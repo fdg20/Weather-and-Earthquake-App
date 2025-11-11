@@ -120,3 +120,43 @@
   }
 }
 
+/* Leaflet custom markers */
+.custom-typhoon-marker,
+.custom-draggable-marker,
+.custom-earthquake-marker,
+.custom-current-location-marker {
+  background: transparent !important;
+  border: none !important;
+}
+
+/* Pulse animation for markers */
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Ensure Leaflet controls are visible */
+.leaflet-control {
+  z-index: 1000;
+}
+
+.leaflet-popup-content-wrapper {
+  background: white;
+  border-radius: 8px;
+}
+
+.leaflet-popup-content {
+  margin: 0;
+  padding: 0;
+}
+

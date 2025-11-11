@@ -8,11 +8,13 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@react-three/drei": "^9.88.13",
+    "@react-three/fiber": "^8.15.11",
+    "leaflet": "^1.9.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "three": "^0.158.0",
-    "@react-three/fiber": "^8.15.11",
-    "@react-three/drei": "^9.88.13"
+    "react-leaflet": "^4.2.1",
+    "three": "^0.158.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.43",
@@ -21,4 +23,3 @@
     "vite": "^5.0.8"
   }
 }
-
