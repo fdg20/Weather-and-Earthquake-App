@@ -299,20 +299,37 @@ export async function fetchEarthquakes(minMagnitude = 4.5, limit = 50) {
 }
 
 // Fetch typhoon data - using multiple sources
+// NOTE: Most official sources (JTWC, JMA, PAGASA) don't provide public JSON APIs
+// For reliable real-time data, use a weather API service like OpenWeatherMap or WeatherAPI
+// See REALTIME_DATA_GUIDE.md for setup instructions
 export async function fetchTyphoons() {
   try {
-    // Try multiple data sources in order of preference
-    // 1. Try JTWC data (via public endpoints)
-    // 2. Try JMA data
-    // 3. Try weather APIs with tropical cyclone data
-    // 4. Fall back to empty array (no active typhoons)
+    // Try weather APIs first (if API keys are configured)
+    const WEATHER_API_KEY = import.meta.env.VITE_WEATHERAPI_KEY || ''
+    if (WEATHER_API_KEY) {
+      try {
+        const weatherApiData = await fetchWeatherAPITyphoons()
+        if (weatherApiData && weatherApiData.length > 0) {
+          console.log(`✅ Fetched ${weatherApiData.length} typhoon(s) from WeatherAPI`)
+          return weatherApiData
+        }
+      } catch (error) {
+        console.log('WeatherAPI fetch failed:', error.message)
+      }
+    }
     
+    // Try other sources (may fail due to CORS restrictions)
     const typhoons = await fetchTyphoonDataFromAPI()
-    console.log(`Fetched ${typhoons.length} typhoons`)
+    if (typhoons.length > 0) {
+      console.log(`✅ Fetched ${typhoons.length} typhoon(s)`)
+    } else {
+      console.log('⚠️ No typhoons found. To get real-time data, set up a weather API key.')
+      console.log('📖 See REALTIME_DATA_GUIDE.md for instructions')
+    }
     return typhoons
   } catch (error) {
     console.error('Error fetching typhoons:', error)
-    // Return empty array instead of sample data
+    console.log('💡 Tip: Set up a weather API key for reliable typhoon data')
     return []
   }
 }
