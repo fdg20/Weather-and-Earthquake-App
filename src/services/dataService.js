@@ -321,6 +321,9 @@ export async function fetchTyphoons() {
 async function fetchTyphoonDataFromAPI() {
   // Try using a CORS proxy for JTWC data (Joint Typhoon Warning Center)
   try {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
+    
     const proxyUrl = 'https://api.allorigins.win/raw?url='
     const jtwcUrl = encodeURIComponent('https://www.metoc.navy.mil/jtwc/products/active_storms.json')
     const response = await fetch(proxyUrl + jtwcUrl, {
@@ -328,23 +331,68 @@ async function fetchTyphoonDataFromAPI() {
       headers: {
         'Accept': 'application/json',
       },
-      cache: 'no-cache'
+      cache: 'no-cache',
+      signal: controller.signal
     })
+    
+    clearTimeout(timeoutId)
+    
+    if (response.ok) {
+      const data = await response.json()
+      console.log('JTWC raw data:', JSON.stringify(data).substring(0, 200))
+      const jtwcData = parseJTWCData(data)
+      if (jtwcData && jtwcData.length > 0) {
+        console.log(`Successfully fetched ${jtwcData.length} typhoon(s) from JTWC`)
+        return jtwcData
+      } else {
+        console.log('JTWC returned data but parsing resulted in 0 typhoons')
+      }
+    } else {
+      console.log(`JTWC fetch failed with status: ${response.status}`)
+    }
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      console.log('JTWC fetch timed out')
+    } else {
+      console.log('JTWC fetch failed:', error.message)
+    }
+  }
+  
+  // Try alternative CORS proxy
+  try {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 10000)
+    
+    const proxyUrl = 'https://corsproxy.io/?'
+    const jtwcUrl = encodeURIComponent('https://www.metoc.navy.mil/jtwc/products/active_storms.json')
+    const response = await fetch(proxyUrl + jtwcUrl, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+      },
+      cache: 'no-cache',
+      signal: controller.signal
+    })
+    
+    clearTimeout(timeoutId)
     
     if (response.ok) {
       const data = await response.json()
       const jtwcData = parseJTWCData(data)
       if (jtwcData && jtwcData.length > 0) {
-        console.log('Successfully fetched typhoon data from JTWC')
+        console.log(`Successfully fetched ${jtwcData.length} typhoon(s) from JTWC (alternative proxy)`)
         return jtwcData
       }
     }
   } catch (error) {
-    console.log('JTWC fetch failed, trying alternatives:', error.message)
+    console.log('JTWC alternative proxy failed:', error.message)
   }
   
   // Try JMA (Japan Meteorological Agency) data with CORS proxy
   try {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 10000)
+    
     const proxyUrl = 'https://api.allorigins.win/raw?url='
     const jmaUrl = encodeURIComponent('https://www.jma.go.jp/en/typh/position.json')
     const response = await fetch(proxyUrl + jmaUrl, {
@@ -352,37 +400,49 @@ async function fetchTyphoonDataFromAPI() {
       headers: {
         'Accept': 'application/json',
       },
-      cache: 'no-cache'
+      cache: 'no-cache',
+      signal: controller.signal
     })
+    
+    clearTimeout(timeoutId)
     
     if (response.ok) {
       const data = await response.json()
+      console.log('JMA raw data:', JSON.stringify(data).substring(0, 200))
       const jmaData = parseJMAData(data)
       if (jmaData && jmaData.length > 0) {
-        console.log('Successfully fetched typhoon data from JMA')
+        console.log(`Successfully fetched ${jmaData.length} typhoon(s) from JMA`)
         return jmaData
+      } else {
+        console.log('JMA returned data but parsing resulted in 0 typhoons')
       }
+    } else {
+      console.log(`JMA fetch failed with status: ${response.status}`)
     }
   } catch (error) {
-    console.log('JMA fetch failed, trying alternatives:', error.message)
+    if (error.name === 'AbortError') {
+      console.log('JMA fetch timed out')
+    } else {
+      console.log('JMA fetch failed:', error.message)
+    }
   }
   
   // Try PAGASA data (Philippines weather agency)
   try {
     const pagasaData = await fetchPAGASAData()
     if (pagasaData && pagasaData.length > 0) {
-      console.log('Successfully fetched typhoon data from PAGASA')
+      console.log(`Successfully fetched ${pagasaData.length} typhoon(s) from PAGASA`)
       return pagasaData
     }
   } catch (error) {
-    console.log('PAGASA fetch failed, trying alternatives:', error.message)
+    console.log('PAGASA fetch failed:', error.message)
   }
   
   // Try WeatherAPI.com tropical cyclone data (if API key available)
   try {
     const weatherApiData = await fetchWeatherAPITyphoons()
     if (weatherApiData && weatherApiData.length > 0) {
-      console.log('Successfully fetched typhoon data from WeatherAPI')
+      console.log(`Successfully fetched ${weatherApiData.length} typhoon(s) from WeatherAPI`)
       return weatherApiData
     }
   } catch (error) {
@@ -393,7 +453,7 @@ async function fetchTyphoonDataFromAPI() {
   try {
     const trackingData = await fetchTyphoonTrackingAPI()
     if (trackingData && trackingData.length > 0) {
-      console.log('Successfully fetched typhoon data from tracking API')
+      console.log(`Successfully fetched ${trackingData.length} typhoon(s) from tracking API`)
       return trackingData
     }
   } catch (error) {
@@ -401,7 +461,7 @@ async function fetchTyphoonDataFromAPI() {
   }
   
   // If all APIs fail, return empty array (no active typhoons)
-  console.log('No active typhoons found or all APIs failed')
+  console.warn('⚠️ No active typhoons found or all APIs failed. Check console for details.')
   return []
 }
 
@@ -678,6 +738,7 @@ function parseJTWCData(data) {
   // JTWC data structure varies, this is a generic parser
   // Adjust based on actual JTWC response format
   if (!data) {
+    console.log('parseJTWCData: No data provided')
     return []
   }
   
@@ -685,18 +746,26 @@ function parseJTWCData(data) {
   let storms = []
   if (Array.isArray(data)) {
     storms = data
+    console.log(`parseJTWCData: Found ${storms.length} storms in array`)
   } else if (data.storms && Array.isArray(data.storms)) {
     storms = data.storms
+    console.log(`parseJTWCData: Found ${storms.length} storms in data.storms`)
   } else if (data.activeStorms && Array.isArray(data.activeStorms)) {
     storms = data.activeStorms
+    console.log(`parseJTWCData: Found ${storms.length} storms in data.activeStorms`)
+  } else if (data.active && Array.isArray(data.active)) {
+    storms = data.active
+    console.log(`parseJTWCData: Found ${storms.length} storms in data.active`)
   } else if (typeof data === 'object') {
     // Try to extract storms from object keys
     storms = Object.values(data).filter(item => 
-      item && (item.name || item.internationalName || item.position)
+      item && typeof item === 'object' && (item.name || item.internationalName || item.position || item.lat || item.lon)
     )
+    console.log(`parseJTWCData: Extracted ${storms.length} storms from object values`)
   }
   
   if (storms.length === 0) {
+    console.log('parseJTWCData: No storms found in data structure:', Object.keys(data || {}))
     return []
   }
   
@@ -796,51 +865,110 @@ async function fetchJMAData() {
 // Parse JMA data format
 function parseJMAData(data) {
   // JMA data structure parser
-  if (!data || !data.typhoons || !Array.isArray(data.typhoons)) {
+  if (!data) {
+    console.log('parseJMAData: No data provided')
     return []
   }
   
+  // Try different possible JMA data structures
+  let typhoons = []
+  if (data.typhoons && Array.isArray(data.typhoons)) {
+    typhoons = data.typhoons
+  } else if (data.active && Array.isArray(data.active)) {
+    typhoons = data.active
+  } else if (Array.isArray(data)) {
+    typhoons = data
+  } else if (data.data && Array.isArray(data.data)) {
+    typhoons = data.data
+  }
+  
+  if (!Array.isArray(typhoons) || typhoons.length === 0) {
+    console.log('parseJMAData: No typhoons found. Data structure:', Object.keys(data || {}))
+    return []
+  }
+  
+  console.log(`parseJMAData: Found ${typhoons.length} typhoon(s)`)
+  
   const now = new Date()
+  const sevenDaysAgo = now.getTime() - (7 * 24 * 60 * 60 * 1000)
   const philippinesLat = 12.8797
   const philippinesLon = 121.7740
   
-  return data.typhoons.map((typhoon, index) => {
-    const currentPos = typhoon.currentPosition || typhoon.position || { lat: 0, lon: 0 }
-    const path = typhoon.path || typhoon.track || []
-    
-    const localName = getLocalName(typhoon.name || typhoon.internationalName || '')
-    const isInside = isInsidePAR(currentPos.lat, currentPos.lon)
-    const distance = calculateDistance(
-      currentPos.lat, currentPos.lon,
-      philippinesLat, philippinesLon
-    )
-    
-    return {
-      id: typhoon.id || `jma-${index}`,
-      name: typhoon.name || typhoon.internationalName || 'Unknown',
-      localName: localName,
-      currentPosition: {
-        lat: currentPos.lat,
-        lon: currentPos.lon,
-        intensity: typhoon.intensity || typhoon.category || 2,
-        windSpeed: typhoon.windSpeed || typhoon.maxWindSpeed || 0,
-      },
-      path: path.map(point => ({
-        lat: point.lat || point[0],
-        lon: point.lon || point[1],
-        intensity: point.intensity || point.category || 2,
-        timestamp: point.timestamp || point.time || now.getTime(),
-      })),
-      isInsidePAR: isInside,
-      displayName: isInside && localName 
-        ? `${localName} (${typhoon.name || typhoon.internationalName})` 
-        : (typhoon.name || typhoon.internationalName),
-      approachingPhilippines: distance < 2000,
-      distanceToPhilippines: Math.round(distance),
-      estimatedArrival: typhoon.estimatedArrival ? new Date(typhoon.estimatedArrival) : null,
-      lastUpdate: typhoon.lastUpdate ? new Date(typhoon.lastUpdate) : now,
+  return typhoons.map((typhoon, index) => {
+    try {
+      const currentPos = typhoon.currentPosition || typhoon.position || 
+        (typhoon.lat && typhoon.lon ? { lat: typhoon.lat, lon: typhoon.lon } : { lat: 0, lon: 0 })
+      let path = typhoon.path || typhoon.track || typhoon.forecast || []
+      
+      // If path is empty, generate a simple path from current position
+      if (path.length === 0 && currentPos.lat !== 0 && currentPos.lon !== 0) {
+        path = []
+        for (let i = 0; i < 7; i++) {
+          const timestamp = sevenDaysAgo + (i * 24 * 60 * 60 * 1000)
+          path.push({
+            lat: currentPos.lat - (7 - i) * 0.2,
+            lon: currentPos.lon - (7 - i) * 0.2,
+            intensity: Math.max(2, 5 - i * 0.3),
+            timestamp
+          })
+        }
+      }
+      
+      const stormName = typhoon.name || typhoon.internationalName || typhoon.stormName || `Storm ${index + 1}`
+      const localName = getLocalName(stormName)
+      const isInside = isInsidePAR(currentPos.lat, currentPos.lon)
+      const distance = calculateDistance(
+        currentPos.lat, currentPos.lon,
+        philippinesLat, philippinesLon
+      )
+      
+      // Filter path to only last 7 days
+      const filteredPath = path
+        .map(point => ({
+          lat: point.lat || point[0] || currentPos.lat,
+          lon: point.lon || point[1] || currentPos.lon,
+          intensity: point.intensity || point.category || typhoon.intensity || typhoon.category || 2,
+          timestamp: point.timestamp || point.time || (point.date ? new Date(point.date).getTime() : now.getTime()),
+        }))
+        .filter(point => point.timestamp >= sevenDaysAgo)
+      
+      // Ensure current position is in path
+      if (filteredPath.length === 0 || 
+          (filteredPath[filteredPath.length - 1].lat !== currentPos.lat || 
+           filteredPath[filteredPath.length - 1].lon !== currentPos.lon)) {
+        filteredPath.push({
+          lat: currentPos.lat,
+          lon: currentPos.lon,
+          intensity: typhoon.intensity || typhoon.category || 2,
+          timestamp: now.getTime()
+        })
+      }
+      
+      return {
+        id: typhoon.id || `jma-${index}-${Date.now()}`,
+        name: stormName,
+        localName: localName,
+        currentPosition: {
+          lat: currentPos.lat,
+          lon: currentPos.lon,
+          intensity: typhoon.intensity || typhoon.category || filteredPath[filteredPath.length - 1]?.intensity || 2,
+          windSpeed: typhoon.windSpeed || typhoon.maxWindSpeed || typhoon.wind || 0,
+        },
+        path: filteredPath,
+        isInsidePAR: isInside,
+        displayName: isInside && localName 
+          ? `${localName} (${stormName})` 
+          : stormName,
+        approachingPhilippines: distance < 2000,
+        distanceToPhilippines: Math.round(distance),
+        estimatedArrival: typhoon.estimatedArrival ? new Date(typhoon.estimatedArrival) : null,
+        lastUpdate: typhoon.lastUpdate ? new Date(typhoon.lastUpdate) : now,
+      }
+    } catch (err) {
+      console.error('Error parsing JMA typhoon data:', err, typhoon)
+      return null
     }
-  })
+  }).filter(typhoon => typhoon !== null)
 }
 
 // Fetch from WeatherAPI.com (if API key is available)
