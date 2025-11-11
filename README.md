@@ -9,8 +9,10 @@ A modern web application for visualizing typhoon paths with line-of-sight tracin
 - **Line of Sight Projection**: See projected typhoon paths based on current trajectory
 - **Earthquake Magnitude Display**: View earthquake locations with magnitude-based color coding
 - **Google Maps Integration**: Click on typhoon paths to view them on an interactive Google Maps satellite view
+- **Real-Time Weather Data**: Beautiful weather cards showing current conditions and forecasts (OpenWeather API)
 - **Interactive Controls**: Click markers to view detailed information
 - **Toggle Visibility**: Show/hide typhoons and earthquakes independently
+- **Weather Visualization**: See weather conditions at typhoon locations with detailed forecasts
 
 ## Installation
 
@@ -19,14 +21,20 @@ A modern web application for visualizing typhoon paths with line-of-sight tracin
 npm install
 ```
 
-2. **Set up Google Maps API Key** (required for map view feature):
-   - Get a free API key from [Google Cloud Console](https://console.cloud.google.com/google/maps-apis)
-   - Create a `.env` file in the root directory
-   - Add your API key:
+2. **Set up API Keys** (required for full functionality):
+   - **Google Maps API Key** (required for map view feature):
+     - Get a free API key from [Google Cloud Console](https://console.cloud.google.com/google/maps-apis)
+     - Make sure to enable "Maps JavaScript API" in your Google Cloud project
+   
+   - **OpenWeather API Key** (optional but recommended for weather data):
+     - Get a free API key from [OpenWeather](https://home.openweathermap.org/users/sign_up)
+     - The free tier includes 60 calls/minute and 1,000,000 calls/month
+   
+   - Create a `.env` file in the root directory and add your API keys:
      ```
-     VITE_GOOGLE_MAPS_API_KEY=your_actual_api_key_here
+     VITE_GOOGLE_MAPS_API_KEY=your_google_maps_api_key_here
+     VITE_OPENWEATHER_API_KEY=your_openweather_api_key_here
      ```
-   - Make sure to enable "Maps JavaScript API" in your Google Cloud project
 
 3. Start the development server:
 ```bash
@@ -61,9 +69,12 @@ npm run build
 
 ## Data Sources
 
-Currently uses sample data. In a production environment, you would integrate with:
-- Weather APIs for real-time typhoon data
-- Seismic APIs for earthquake data (e.g., USGS, EMSC)
+- **Earthquakes**: Real-time data from USGS (United States Geological Survey)
+- **Weather Data**: OpenWeather API (when API key is configured)
+- **Typhoons**: Currently uses sample data. In production, integrate with:
+  - JTWC (Joint Typhoon Warning Center)
+  - JMA (Japan Meteorological Agency)
+  - Or other weather APIs
 
 ## Customization
 

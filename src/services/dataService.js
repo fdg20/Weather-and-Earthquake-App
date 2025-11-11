@@ -1,5 +1,75 @@
 // Real-time data fetching service for typhoons and earthquakes
 
+// OpenWeather API service
+const OPENWEATHER_API_KEY = import.meta.env.VITE_OPENWEATHER_API_KEY || ''
+
+// Fetch current weather data from OpenWeather API
+export async function fetchWeatherData(lat, lon) {
+  if (!OPENWEATHER_API_KEY || OPENWEATHER_API_KEY === '') {
+    console.warn('OpenWeather API key not configured')
+    return null
+  }
+
+  try {
+    const response = await fetch(
+      `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${OPENWEATHER_API_KEY}&units=metric`
+    )
+    
+    if (!response.ok) {
+      throw new Error(`OpenWeather API error: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    return {
+      temperature: Math.round(data.main.temp),
+      feelsLike: Math.round(data.main.feels_like),
+      humidity: data.main.humidity,
+      pressure: data.main.pressure,
+      windSpeed: data.wind?.speed ? (data.wind.speed * 3.6).toFixed(1) : 0, // Convert m/s to km/h
+      windDirection: data.wind?.deg || 0,
+      description: data.weather[0]?.description || '',
+      icon: data.weather[0]?.icon || '01d',
+      visibility: data.visibility ? (data.visibility / 1000).toFixed(1) : null,
+      cloudiness: data.clouds?.all || 0,
+      city: data.name || '',
+      country: data.sys?.country || '',
+    }
+  } catch (error) {
+    console.error('Error fetching weather data:', error)
+    return null
+  }
+}
+
+// Fetch weather forecast data
+export async function fetchWeatherForecast(lat, lon) {
+  if (!OPENWEATHER_API_KEY || OPENWEATHER_API_KEY === '') {
+    return null
+  }
+
+  try {
+    const response = await fetch(
+      `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&appid=${OPENWEATHER_API_KEY}&units=metric`
+    )
+    
+    if (!response.ok) {
+      throw new Error(`OpenWeather Forecast API error: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    return data.list.slice(0, 5).map(item => ({
+      date: new Date(item.dt * 1000),
+      temperature: Math.round(item.main.temp),
+      description: item.weather[0]?.description || '',
+      icon: item.weather[0]?.icon || '01d',
+      windSpeed: item.wind?.speed ? (item.wind.speed * 3.6).toFixed(1) : 0,
+      humidity: item.main.humidity,
+    }))
+  } catch (error) {
+    console.error('Error fetching weather forecast:', error)
+    return null
+  }
+}
+
 // Fetch real-time earthquake data from USGS
 export async function fetchEarthquakes(minMagnitude = 4.5, limit = 50) {
   try {
@@ -127,13 +197,40 @@ function getSampleTyphoons() {
   ]
 }
 
-// Get low pressure areas (simulated - in production, use weather API)
-export function getLowPressureAreas() {
-  return [
+// Get low pressure areas (enhanced with OpenWeather data if available)
+export async function getLowPressureAreas() {
+  // Try to fetch real weather data for Philippines region
+  const philippinesAreas = [
     { lat: 13.5, lon: 123.5, intensity: 0.7, name: 'Low Pressure Area 1' },
     { lat: 11.2, lon: 125.8, intensity: 0.5, name: 'Low Pressure Area 2' },
     { lat: 15.8, lon: 120.2, intensity: 0.6, name: 'Low Pressure Area 3' },
   ]
+
+  // If OpenWeather API is available, enhance with real data
+  if (OPENWEATHER_API_KEY && OPENWEATHER_API_KEY !== '') {
+    try {
+      // Fetch weather for key locations to identify low pressure areas
+      const enhancedAreas = await Promise.all(
+        philippinesAreas.map(async (area) => {
+          const weather = await fetchWeatherData(area.lat, area.lon)
+          if (weather && weather.pressure < 1013) {
+            // Low pressure detected
+            return {
+              ...area,
+              intensity: Math.max(0.3, (1013 - weather.pressure) / 20),
+              weather: weather,
+            }
+          }
+          return area
+        })
+      )
+      return enhancedAreas
+    } catch (error) {
+      console.error('Error enhancing low pressure areas:', error)
+    }
+  }
+
+  return philippinesAreas
 }
 
 // Sample earthquake data (fallback)

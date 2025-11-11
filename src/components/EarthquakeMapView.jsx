@@ -162,46 +162,71 @@ function EarthquakeMapView({ earthquake, onClose }) {
     }
 
     // Initialize Google Maps
-    if (!window.google || !window.google.maps) {
-      const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || 'YOUR_API_KEY_HERE'
-      
-      const existingScript = document.querySelector('script[src*="maps.googleapis.com"]')
-      if (existingScript) {
-        existingScript.addEventListener('load', initializeMap)
-        existingScript.addEventListener('error', handleMapError)
-        return () => {
-          existingScript.removeEventListener('load', initializeMap)
-          existingScript.removeEventListener('error', handleMapError)
-        }
-      }
-      
-      script = document.createElement('script')
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=drawing`
-      script.async = true
-      script.defer = true
-      
-      script.onload = () => {
-        clearTimeout(timeoutId)
-        initializeMap()
-      }
-      
-      script.onerror = () => {
-        clearTimeout(timeoutId)
-        handleMapError()
-      }
-      
-      document.head.appendChild(script)
-      
-      timeoutId = setTimeout(() => {
-        if (!window.google || !window.google.maps) {
-          handleMapError()
-        }
-      }, 10000)
-    } else {
-      initializeMap()
+    let isMounted = true
+    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || 'YOUR_API_KEY_HERE'
+    
+    if (!apiKey || apiKey === 'YOUR_API_KEY_HERE') {
+      console.warn('Google Maps API key not configured')
+      handleMapError()
+      return
     }
 
+    // Check if Google Maps is already loaded
+    if (window.google && window.google.maps) {
+      initializeMap()
+      return
+    }
+
+    // Check if script is already being loaded
+    const existingScript = document.querySelector('script[src*="maps.googleapis.com"]')
+    if (existingScript) {
+      const onLoad = () => {
+        if (isMounted) initializeMap()
+      }
+      const onError = () => {
+        if (isMounted) handleMapError()
+      }
+      
+      if (existingScript.dataset.loaded === 'true') {
+        initializeMap()
+      } else {
+        existingScript.addEventListener('load', onLoad)
+        existingScript.addEventListener('error', onError)
+      }
+      
+      return () => {
+        existingScript.removeEventListener('load', onLoad)
+        existingScript.removeEventListener('error', onError)
+        isMounted = false
+      }
+    }
+    
+    script = document.createElement('script')
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=drawing`
+    script.async = true
+    script.defer = true
+    
+    script.onload = () => {
+      if (script) script.dataset.loaded = 'true'
+      clearTimeout(timeoutId)
+      if (isMounted) initializeMap()
+    }
+    
+    script.onerror = () => {
+      clearTimeout(timeoutId)
+      if (isMounted) handleMapError()
+    }
+    
+    document.head.appendChild(script)
+    
+    timeoutId = setTimeout(() => {
+      if (isMounted && (!window.google || !window.google.maps)) {
+        handleMapError()
+      }
+    }, 10000)
+
     return () => {
+      isMounted = false
       if (timeoutId) clearTimeout(timeoutId)
       if (script) {
         script.onload = null

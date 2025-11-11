@@ -10,7 +10,7 @@ import EarthquakeMapView from './components/EarthquakeMapView'
 import UserReportForm from './components/UserReportForm'
 import MapPicker from './components/MapPicker'
 import LowPressureArea from './components/LowPressureArea'
-import { fetchEarthquakes, fetchTyphoons, getLowPressureAreas } from './services/dataService'
+import { fetchEarthquakes, fetchTyphoons, getLowPressureAreas, fetchWeatherData, fetchWeatherForecast } from './services/dataService'
 import { saveUserReport, getUserReports } from './services/userReportsService'
 import './App.css'
 
@@ -41,14 +41,15 @@ function App() {
   const loadData = async () => {
     try {
       setLoading(true)
-      const [typhoonData, earthquakeData] = await Promise.all([
+      const [typhoonData, earthquakeData, lowPressureData] = await Promise.all([
         fetchTyphoons(),
-        fetchEarthquakes(4.5, 50)
+        fetchEarthquakes(4.5, 50),
+        getLowPressureAreas()
       ])
       
       setTyphoons(typhoonData)
       setEarthquakes(earthquakeData)
-      setLowPressureAreas(getLowPressureAreas())
+      setLowPressureAreas(lowPressureData)
       setUserReports(getUserReports())
       setLastUpdate(new Date())
     } catch (error) {
