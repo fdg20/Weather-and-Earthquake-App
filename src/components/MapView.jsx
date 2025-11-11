@@ -189,7 +189,7 @@ function MapView({ typhoon, onClose }) {
             <WeatherCard 
               lat={typhoon.currentPosition.lat} 
               lon={typhoon.currentPosition.lon}
-              cityName={`${typhoon.name} Location`}
+              cityName={`${typhoon.displayName || typhoon.name} Location`}
             />
           </div>
         )}
