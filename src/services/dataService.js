@@ -191,7 +191,7 @@ export async function fetchWeatherForecast(lat, lon) {
   }
 }
 
-// Fetch real-time earthquake data from USGS
+// Fetch real-time earthquake data from USGS (last 7 days only)
 export async function fetchEarthquakes(minMagnitude = 4.5, limit = 50) {
   try {
     const response = await fetch(
@@ -204,12 +204,20 @@ export async function fetchEarthquakes(minMagnitude = 4.5, limit = 50) {
     
     const data = await response.json()
     
-    // Transform USGS data to our format
+    // Calculate 7 days ago timestamp
+    const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000)
+    
+    // Transform USGS data to our format and filter to last 7 days
     const earthquakes = data.features
-      .slice(0, limit)
       .map((feature, index) => {
         const [lon, lat, depth] = feature.geometry.coordinates
         const props = feature.properties
+        const eventTime = new Date(props.time).getTime()
+        
+        // Filter to only last 7 days
+        if (eventTime < sevenDaysAgo) {
+          return null
+        }
         
         // Get location name (try to extract from place or use coordinates)
         let location = props.place || `${lat.toFixed(2)}°N, ${lon.toFixed(2)}°E`
@@ -226,7 +234,9 @@ export async function fetchEarthquakes(minMagnitude = 4.5, limit = 50) {
           time: new Date(props.time),
         }
       })
+      .filter(eq => eq !== null) // Remove null entries
       .sort((a, b) => b.magnitude - a.magnitude) // Sort by magnitude descending
+      .slice(0, limit) // Limit results
     
     return earthquakes
   } catch (error) {
@@ -274,51 +284,94 @@ async function fetchTyphoonDataFromAPI() {
 }
 
 // Sample typhoon data (enhanced with realistic paths, Philippines-focused)
+// Only includes last 7 days of history
 function getSampleTyphoons() {
   const now = new Date()
-  const baseTime = now.getTime() - 5 * 24 * 60 * 60 * 1000 // 5 days ago
+  const nowTime = now.getTime()
+  const sevenDaysAgo = nowTime - (7 * 24 * 60 * 60 * 1000) // 7 days ago
   
   // Philippines coordinates: ~12°N, 123°E (center)
   const philippinesLat = 12.8797
   const philippinesLon = 121.7740
   
+  // Generate path points within last 7 days (every 12 hours)
+  const generatePath = (startLat, startLon, endLat, endLon, startTime, endTime) => {
+    const path = []
+    const hoursDiff = (endTime - startTime) / (1000 * 60 * 60) // hours
+    const steps = Math.max(1, Math.floor(hoursDiff / 12)) // one point every 12 hours
+    
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps
+      const lat = startLat + (endLat - startLat) * t
+      const lon = startLon + (endLon - startLon) * t
+      const timestamp = startTime + (endTime - startTime) * t
+      
+      // Only include if within last 7 days
+      if (timestamp >= sevenDaysAgo) {
+        // Intensity decreases as it approaches land
+        const intensity = Math.max(2, 5 - (t * 3))
+        path.push({
+          lat,
+          lon,
+          intensity: Math.round(intensity),
+          timestamp
+        })
+      }
+    }
+    return path
+  }
+  
   const typhoons = [
     {
       id: 1,
       name: 'Typhoon Mawar',
-      path: [
-        { lat: 8, lon: 140, intensity: 5, timestamp: baseTime },
-        { lat: 10, lon: 138, intensity: 5, timestamp: baseTime + 24 * 3600000 },
-        { lat: 12, lon: 135, intensity: 4, timestamp: baseTime + 48 * 3600000 },
-        { lat: 14, lon: 132, intensity: 4, timestamp: baseTime + 72 * 3600000 },
-        { lat: 15.5, lon: 128, intensity: 3, timestamp: baseTime + 96 * 3600000 }, // Approaching Philippines
-        { lat: 16, lon: 125, intensity: 2, timestamp: baseTime + 120 * 3600000 }, // Over Philippines (inside PAR)
-      ],
+      path: generatePath(
+        8, 140,    // Start position (7 days ago)
+        16, 125,   // Current position (inside PAR)
+        sevenDaysAgo,
+        nowTime - (1 * 24 * 60 * 60 * 1000) // 1 day ago
+      ),
       currentPosition: { lat: 16, lon: 125 }, // Inside PAR
-      lastUpdate: new Date(baseTime + 120 * 3600000),
+      lastUpdate: new Date(nowTime - (1 * 24 * 60 * 60 * 1000)),
       approachingPhilippines: true,
       distanceToPhilippines: 350, // km
-      estimatedArrival: new Date(now.getTime() + 2 * 24 * 3600000), // 2 days
+      estimatedArrival: new Date(nowTime + 2 * 24 * 3600000), // 2 days
     },
     {
       id: 2,
       name: 'Typhoon Guchol',
-      path: [
-        { lat: 9, lon: 145, intensity: 4, timestamp: baseTime + 12 * 3600000 },
-        { lat: 11, lon: 142, intensity: 4, timestamp: baseTime + 36 * 3600000 },
-        { lat: 13, lon: 139, intensity: 3, timestamp: baseTime + 60 * 3600000 },
-        { lat: 14.5, lon: 136, intensity: 2, timestamp: baseTime + 84 * 3600000 },
-      ],
+      path: generatePath(
+        9, 145,    // Start position (6 days ago)
+        13, 139,   // Current position (inside PAR)
+        sevenDaysAgo + (1 * 24 * 60 * 60 * 1000), // 6 days ago
+        nowTime - (2 * 24 * 60 * 60 * 1000) // 2 days ago
+      ),
       currentPosition: { lat: 13, lon: 139 }, // Inside PAR
-      lastUpdate: new Date(baseTime + 60 * 3600000),
+      lastUpdate: new Date(nowTime - (2 * 24 * 60 * 60 * 1000)),
       approachingPhilippines: true,
       distanceToPhilippines: 800, // km
-      estimatedArrival: new Date(now.getTime() + 4 * 24 * 3600000), // 4 days
+      estimatedArrival: new Date(nowTime + 4 * 24 * 3600000), // 4 days
     },
   ]
   
-  // Add local names and PAR status
+  // Filter path to only include last 7 days and add local names and PAR status
   return typhoons.map(typhoon => {
+    // Filter path points to only last 7 days
+    const filteredPath = typhoon.path.filter(point => {
+      const pointTime = point.timestamp || new Date(point.timestamp).getTime()
+      return pointTime >= sevenDaysAgo
+    })
+    
+    // Ensure we have at least the current position
+    if (filteredPath.length === 0) {
+      filteredPath.push({
+        lat: typhoon.currentPosition.lat,
+        lon: typhoon.currentPosition.lon,
+        intensity: 2,
+        timestamp: nowTime
+      })
+    }
+    
     const localName = getLocalName(typhoon.name)
     const isInside = isInsidePAR(
       typhoon.currentPosition.lat,
@@ -327,6 +380,7 @@ function getSampleTyphoons() {
     
     return {
       ...typhoon,
+      path: filteredPath,
       localName: localName || null,
       isInsidePAR: isInside,
       displayName: isInside && localName 
@@ -372,13 +426,49 @@ export async function getLowPressureAreas() {
   return philippinesAreas
 }
 
-// Sample earthquake data (fallback)
+// Sample earthquake data (fallback - last 7 days only)
 function getSampleEarthquakes() {
+  const now = new Date()
+  const sevenDaysAgo = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000))
+  
+  // Generate sample earthquakes within last 7 days
   return [
-    { id: 1, lat: 35.6762, lon: 139.6503, magnitude: 7.2, depth: 10, location: 'Tokyo, Japan', time: new Date() },
-    { id: 2, lat: 14.5995, lon: 120.9842, magnitude: 6.5, depth: 15, location: 'Manila, Philippines', time: new Date() },
-    { id: 3, lat: 25.0330, lon: 121.5654, magnitude: 5.8, depth: 8, location: 'Taipei, Taiwan', time: new Date() },
-    { id: 4, lat: 37.5665, lon: 126.9780, magnitude: 6.1, depth: 12, location: 'Seoul, South Korea', time: new Date() },
-  ]
+    { 
+      id: 1, 
+      lat: 35.6762, 
+      lon: 139.6503, 
+      magnitude: 7.2, 
+      depth: 10, 
+      location: 'Tokyo, Japan', 
+      time: new Date(now.getTime() - (2 * 24 * 60 * 60 * 1000)) // 2 days ago
+    },
+    { 
+      id: 2, 
+      lat: 14.5995, 
+      lon: 120.9842, 
+      magnitude: 6.5, 
+      depth: 15, 
+      location: 'Manila, Philippines', 
+      time: new Date(now.getTime() - (1 * 24 * 60 * 60 * 1000)) // 1 day ago
+    },
+    { 
+      id: 3, 
+      lat: 25.0330, 
+      lon: 121.5654, 
+      magnitude: 5.8, 
+      depth: 8, 
+      location: 'Taipei, Taiwan', 
+      time: new Date(now.getTime() - (3 * 24 * 60 * 60 * 1000)) // 3 days ago
+    },
+    { 
+      id: 4, 
+      lat: 37.5665, 
+      lon: 126.9780, 
+      magnitude: 6.1, 
+      depth: 12, 
+      location: 'Seoul, South Korea', 
+      time: new Date(now.getTime() - (5 * 24 * 60 * 60 * 1000)) // 5 days ago
+    },
+  ].filter(eq => eq.time >= sevenDaysAgo) // Filter to only last 7 days
 }
 
