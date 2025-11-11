@@ -22,11 +22,12 @@
     width: 100vw !important;
     height: 100vh !important;
     display: block !important;
-    position: absolute;
+    position: fixed;
     top: 0;
     left: 0;
     -webkit-tap-highlight-color: transparent;
     z-index: 1 !important;
+    pointer-events: auto;
   }
 }
 

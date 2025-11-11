@@ -17,6 +17,8 @@ function ControlPanel({
   onShowReportForm,
   philippinesTyphoons = [],
   userReportsCount = 0,
+  userReports = [],
+  onReportClick,
   loading = false,
   lastUpdate = null,
   autoRefresh = true,
@@ -51,9 +53,18 @@ function ControlPanel({
         )}
 
         {userReportsCount > 0 && (
-          <div className="user-reports-count">
+          <button 
+            className="user-reports-count"
+            onClick={() => {
+              if (onReportClick && userReports && userReports.length > 0) {
+                // Show first report or a list
+                onReportClick(userReports[0])
+              }
+            }}
+            title="Click to view reports"
+          >
             📍 {userReportsCount} user report{userReportsCount > 1 ? 's' : ''} submitted
-          </div>
+          </button>
         )}
         
         {/* Real-time status */}

@@ -268,6 +268,8 @@ function App() {
         onShowReportForm={() => setShowReportForm(true)}
         philippinesTyphoons={typhoons.filter(t => t.approachingPhilippines)}
         userReportsCount={userReports.length}
+        userReports={userReports}
+        onReportClick={setSelectedReport}
       />
 
       {showReportForm && (
