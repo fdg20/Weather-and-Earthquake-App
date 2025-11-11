@@ -40,7 +40,7 @@ const TYPHOON_NAME_MAPPING = {
   'Bolaven': 'Ofel',
   'Sanba': 'Perla',
   'Jelawat': 'Quiel',
-  'Ewiniar': 'Ramil',
+  'Ewiniar': 'Uwang',
   'Maliksi': 'Salome',
   'Gaemi': 'Tino',
   'Prapiroon': 'Ulysses',
@@ -324,7 +324,7 @@ function getSampleTyphoons() {
   const typhoons = [
     {
       id: 1,
-      name: 'Typhoon Mawar',
+      name: 'Typhoon Ewiniar', // International name - maps to UWANG locally
       path: generatePath(
         8, 140,    // Start position (7 days ago)
         16, 125,   // Current position (inside PAR)

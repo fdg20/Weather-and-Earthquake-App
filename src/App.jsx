@@ -191,23 +191,29 @@ function App() {
                 }}
                 onPointerOver={(e) => {
                   e.stopPropagation()
-                  if (window.innerWidth > 768) {
-                    document.body.style.cursor = 'pointer'
-                  }
+                  document.body.style.cursor = 'pointer'
                 }}
                 onPointerOut={() => {
-                  if (window.innerWidth > 768) {
-                    document.body.style.cursor = 'auto'
-                  }
+                  document.body.style.cursor = 'auto'
                 }}
               >
-                <sphereGeometry args={[0.02, 16, 16]} />
+                <sphereGeometry args={[0.03, 16, 16]} />
                 <meshStandardMaterial
                   color="#00ff00"
                   emissive="#00ff00"
-                  emissiveIntensity={0.8}
+                  emissiveIntensity={1.2}
                 />
               </mesh>
+              {/* Add a label or indicator for reports */}
+              <Text
+                position={[x * 1.05, y * 1.05, z * 1.05]}
+                fontSize={0.03}
+                color="#00ff00"
+                anchorX="center"
+                anchorY="middle"
+              >
+                📍
+              </Text>
             </group>
           )
         })}

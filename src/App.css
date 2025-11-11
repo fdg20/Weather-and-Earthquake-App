@@ -26,6 +26,7 @@
     top: 0;
     left: 0;
     -webkit-tap-highlight-color: transparent;
+    z-index: 1 !important;
   }
 }
 
