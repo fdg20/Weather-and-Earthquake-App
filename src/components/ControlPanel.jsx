@@ -36,7 +36,7 @@ function ControlPanel({
               <strong>Philippines Alert:</strong> {philippinesTyphoons.length} typhoon{philippinesTyphoons.length > 1 ? 's' : ''} approaching
               {philippinesTyphoons.map(typhoon => (
                 <div key={typhoon.id} className="alert-typhoon">
-                  {typhoon.name}: {typhoon.distanceToPhilippines}km away, ETA: {new Date(typhoon.estimatedArrival).toLocaleDateString()}
+                  {typhoon.displayName || typhoon.name}: {typhoon.distanceToPhilippines}km away, ETA: {new Date(typhoon.estimatedArrival).toLocaleDateString()}
                 </div>
               ))}
             </div>
@@ -118,7 +118,14 @@ function ControlPanel({
                 className={`typhoon-item ${selectedTyphoon?.id === typhoon.id ? 'selected' : ''}`}
               >
                 <div onClick={() => onTyphoonSelect(typhoon)} style={{ flex: 1 }}>
-                  <div className="typhoon-name">{typhoon.name}</div>
+                  <div className="typhoon-name">
+                    {typhoon.displayName || typhoon.name}
+                    {typhoon.isInsidePAR && typhoon.localName && (
+                      <span style={{ fontSize: '0.85em', color: '#4ecdc4', marginLeft: '8px' }}>
+                        🇵🇭 PAR
+                      </span>
+                    )}
+                  </div>
                   <div className="typhoon-info">
                     Position: {typhoon.currentPosition.lat.toFixed(1)}°N,{' '}
                     {typhoon.currentPosition.lon.toFixed(1)}°E
@@ -188,7 +195,19 @@ function ControlPanel({
           <h3>Details</h3>
           {selectedTyphoon && (
             <div className="details-content">
-              <h4>{selectedTyphoon.name}</h4>
+              <h4>
+                {selectedTyphoon.displayName || selectedTyphoon.name}
+                {selectedTyphoon.isInsidePAR && selectedTyphoon.localName && (
+                  <span style={{ fontSize: '0.8em', color: '#4ecdc4', marginLeft: '8px' }}>
+                    🇵🇭 Inside PAR
+                  </span>
+                )}
+              </h4>
+              {selectedTyphoon.localName && (
+                <p>
+                  <strong>Local Name (PAGASA):</strong> {selectedTyphoon.localName}
+                </p>
+              )}
               <p>
                 <strong>Current Position:</strong> {selectedTyphoon.currentPosition.lat.toFixed(2)}°N,{' '}
                 {selectedTyphoon.currentPosition.lon.toFixed(2)}°E

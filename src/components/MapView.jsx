@@ -80,7 +80,14 @@ function MapView({ typhoon, onClose }) {
     <div className="map-view-overlay" onClick={onClose}>
       <div className="map-view-container" onClick={(e) => e.stopPropagation()}>
         <div className="map-view-header">
-          <h2>{typhoon.name} - Path Visualization</h2>
+          <h2>
+            {typhoon.displayName || typhoon.name} - Path Visualization
+            {typhoon.isInsidePAR && typhoon.localName && (
+              <span style={{ fontSize: '0.7em', marginLeft: '10px', opacity: 0.9 }}>
+                🇵🇭 Inside PAR
+              </span>
+            )}
+          </h2>
           <button className="close-button" onClick={onClose}>×</button>
         </div>
         <div className="map-view-content">
@@ -121,15 +128,15 @@ function MapView({ typhoon, onClose }) {
                 position={[point.lat, point.lon]}
                 icon={getPathIcon(point.intensity)}
               >
-                <Popup>
-                  <div style={{ padding: '10px' }}>
-                    <h3 style={{ margin: '0 0 10px 0' }}>{typhoon.name}</h3>
-                    <p style={{ margin: '5px 0' }}><strong>Point {index + 1}</strong></p>
-                    <p style={{ margin: '5px 0' }}>Lat: {point.lat.toFixed(2)}°</p>
-                    <p style={{ margin: '5px 0' }}>Lon: {point.lon.toFixed(2)}°</p>
-                    <p style={{ margin: '5px 0' }}>Intensity: Category {point.intensity}</p>
-                  </div>
-                </Popup>
+              <Popup>
+                <div style={{ padding: '10px' }}>
+                  <h3 style={{ margin: '0 0 10px 0' }}>{typhoon.displayName || typhoon.name}</h3>
+                  <p style={{ margin: '5px 0' }}><strong>Point {index + 1}</strong></p>
+                  <p style={{ margin: '5px 0' }}>Lat: {point.lat.toFixed(2)}°</p>
+                  <p style={{ margin: '5px 0' }}>Lon: {point.lon.toFixed(2)}°</p>
+                  <p style={{ margin: '5px 0' }}>Intensity: Category {point.intensity}</p>
+                </div>
+              </Popup>
               </Marker>
             ))}
 
@@ -141,12 +148,27 @@ function MapView({ typhoon, onClose }) {
               <Popup>
                 <div style={{ padding: '15px', minWidth: '250px' }}>
                   <h3 style={{ margin: '0 0 15px 0', color: '#d32f2f', fontSize: '18px' }}>
-                    🌀 {typhoon.name}
+                    🌀 {typhoon.displayName || typhoon.name}
+                    {typhoon.isInsidePAR && typhoon.localName && (
+                      <span style={{ fontSize: '0.7em', marginLeft: '8px', color: '#4ecdc4' }}>
+                        🇵🇭
+                      </span>
+                    )}
                   </h3>
                   <div style={{ lineHeight: '1.8' }}>
+                    {typhoon.localName && (
+                      <p style={{ margin: '8px 0' }}>
+                        <strong>Local Name (PAGASA):</strong> {typhoon.localName}
+                      </p>
+                    )}
                     <p style={{ margin: '8px 0' }}><strong>Current Position:</strong></p>
                     <p style={{ margin: '8px 0' }}>Lat: {typhoon.currentPosition.lat.toFixed(4)}°</p>
                     <p style={{ margin: '8px 0' }}>Lon: {typhoon.currentPosition.lon.toFixed(4)}°</p>
+                    {typhoon.isInsidePAR && (
+                      <p style={{ margin: '8px 0', color: '#4ecdc4' }}>
+                        <strong>📍 Inside Philippine Area of Responsibility (PAR)</strong>
+                      </p>
+                    )}
                     <p style={{ margin: '8px 0' }}>
                       <strong>Intensity:</strong> Category {typhoon.currentPosition.intensity || typhoon.path[typhoon.path.length - 1]?.intensity || 'N/A'}
                     </p>

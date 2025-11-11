@@ -3,6 +3,127 @@
 // OpenWeather API service
 const OPENWEATHER_API_KEY = import.meta.env.VITE_OPENWEATHER_API_KEY || ''
 
+// Philippine Area of Responsibility (PAR) boundaries
+const PAR_BOUNDARIES = {
+  north: 25.0,
+  south: 5.0,
+  west: 115.0,
+  east: 135.0
+}
+
+// Check if coordinates are inside PAR
+export function isInsidePAR(lat, lon) {
+  return (
+    lat >= PAR_BOUNDARIES.south &&
+    lat <= PAR_BOUNDARIES.north &&
+    lon >= PAR_BOUNDARIES.west &&
+    lon <= PAR_BOUNDARIES.east
+  )
+}
+
+// Mapping of international typhoon names to Philippine local names (PAGASA names)
+// This is a sample mapping - in production, you'd fetch this from PAGASA or maintain a comprehensive list
+const TYPHOON_NAME_MAPPING = {
+  'Mawar': 'Betty',
+  'Guchol': 'Chedeng',
+  'Talim': 'Dodong',
+  'Doksuri': 'Egay',
+  'Khanun': 'Falcon',
+  'Lan': 'Goring',
+  'Dora': 'Hanna',
+  'Saola': 'Ineng',
+  'Damrey': 'Jenny',
+  'Haikui': 'Kabayan',
+  'Kirogi': 'Liwayway',
+  'Yun-yeung': 'Marilyn',
+  'Koinu': 'Nimfa',
+  'Bolaven': 'Ofel',
+  'Sanba': 'Perla',
+  'Jelawat': 'Quiel',
+  'Ewiniar': 'Ramil',
+  'Maliksi': 'Salome',
+  'Gaemi': 'Tino',
+  'Prapiroon': 'Ulysses',
+  'Maria': 'Vicky',
+  'Son-Tinh': 'Warren',
+  'Ampil': 'Yoyong',
+  'Wukong': 'Zosimo',
+  'Jongdari': 'Alakdan',
+  'Shanshan': 'Basyang',
+  'Yagi': 'Caloy',
+  'Leepi': 'Domeng',
+  'Bebinca': 'Ester',
+  'Rumbia': 'Florita',
+  'Soulik': 'Gardo',
+  'Cimaron': 'Henry',
+  'Jebi': 'Inday',
+  'Mangkhut': 'Josie',
+  'Barijat': 'Karding',
+  'Trami': 'Luis',
+  'Kong-rey': 'Maymay',
+  'Yutu': 'Neneng',
+  'Toraji': 'Obet',
+  'Usagi': 'Paolo',
+  'Pabuk': 'Queenie',
+  'Wutip': 'Rosita',
+  'Sepat': 'Samuel',
+  'Mun': 'Tomas',
+  'Danas': 'Usman',
+  'Nari': 'Venus',
+  'Wipha': 'Waldo',
+  'Francisco': 'Yayang',
+  'Lekima': 'Zeny',
+  'Krosa': 'Abe',
+  'Bailu': 'Berto',
+  'Podul': 'Crising',
+  'Lingling': 'Dante',
+  'Kajiki': 'Emong',
+  'Faxai': 'Fabian',
+  'Peipah': 'Gorio',
+  'Tapah': 'Huaning',
+  'Mitag': 'Isang',
+  'Hagibis': 'Jolina',
+  'Neoguri': 'Kiko',
+  'Bualoi': 'Lannie',
+  'Matmo': 'Mina',
+  'Halong': 'Nonoy',
+  'Nakri': 'Onyok',
+  'Fengshen': 'Perla',
+  'Kalmaegi': 'Quinta',
+  'Fung-wong': 'Rolly',
+  'Kammuri': 'Siony',
+  'Phanfone': 'Tonyo',
+  'Vongfong': 'Ulysses',
+  'Nuri': 'Vicky',
+  'Sinlaku': 'Warren',
+  'Hagupit': 'Yoyong',
+  'Jangmi': 'Zosimo',
+}
+
+// Get local Philippine name for a typhoon
+export function getLocalName(internationalName) {
+  // Remove "Typhoon" prefix if present
+  const cleanName = internationalName.replace(/^Typhoon\s+/i, '').trim()
+  return TYPHOON_NAME_MAPPING[cleanName] || null
+}
+
+// Get display name for typhoon (local if inside PAR, international otherwise)
+export function getTyphoonDisplayName(typhoon) {
+  if (!typhoon) return ''
+  
+  // Check if current position is inside PAR
+  const isInside = isInsidePAR(
+    typhoon.currentPosition.lat,
+    typhoon.currentPosition.lon
+  )
+  
+  if (isInside && typhoon.localName) {
+    return `${typhoon.localName} (${typhoon.name})`
+  }
+  
+  return typhoon.name
+}
+
 // Fetch current weather data from OpenWeather API
 export async function fetchWeatherData(lat, lon) {
   if (!OPENWEATHER_API_KEY || OPENWEATHER_API_KEY === '') {
@@ -161,7 +282,7 @@ function getSampleTyphoons() {
   const philippinesLat = 12.8797
   const philippinesLon = 121.7740
   
-  return [
+  const typhoons = [
     {
       id: 1,
       name: 'Typhoon Mawar',
@@ -171,10 +292,10 @@ function getSampleTyphoons() {
         { lat: 12, lon: 135, intensity: 4, timestamp: baseTime + 48 * 3600000 },
         { lat: 14, lon: 132, intensity: 4, timestamp: baseTime + 72 * 3600000 },
         { lat: 15.5, lon: 128, intensity: 3, timestamp: baseTime + 96 * 3600000 }, // Approaching Philippines
-        { lat: 16, lon: 125, intensity: 2, timestamp: baseTime + 120 * 3600000 }, // Over Philippines
+        { lat: 16, lon: 125, intensity: 2, timestamp: baseTime + 120 * 3600000 }, // Over Philippines (inside PAR)
       ],
-      currentPosition: { lat: 14, lon: 132 },
-      lastUpdate: new Date(baseTime + 72 * 3600000),
+      currentPosition: { lat: 16, lon: 125 }, // Inside PAR
+      lastUpdate: new Date(baseTime + 120 * 3600000),
       approachingPhilippines: true,
       distanceToPhilippines: 350, // km
       estimatedArrival: new Date(now.getTime() + 2 * 24 * 3600000), // 2 days
@@ -188,13 +309,31 @@ function getSampleTyphoons() {
         { lat: 13, lon: 139, intensity: 3, timestamp: baseTime + 60 * 3600000 },
         { lat: 14.5, lon: 136, intensity: 2, timestamp: baseTime + 84 * 3600000 },
       ],
-      currentPosition: { lat: 13, lon: 139 },
+      currentPosition: { lat: 13, lon: 139 }, // Inside PAR
       lastUpdate: new Date(baseTime + 60 * 3600000),
       approachingPhilippines: true,
       distanceToPhilippines: 800, // km
       estimatedArrival: new Date(now.getTime() + 4 * 24 * 3600000), // 4 days
     },
   ]
+  
+  // Add local names and PAR status
+  return typhoons.map(typhoon => {
+    const localName = getLocalName(typhoon.name)
+    const isInside = isInsidePAR(
+      typhoon.currentPosition.lat,
+      typhoon.currentPosition.lon
+    )
+    
+    return {
+      ...typhoon,
+      localName: localName || null,
+      isInsidePAR: isInside,
+      displayName: isInside && localName 
+        ? `${localName} (${typhoon.name})` 
+        : typhoon.name
+    }
+  })
 }
 
 // Get low pressure areas (enhanced with OpenWeather data if available)

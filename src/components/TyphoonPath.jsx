@@ -167,7 +167,7 @@ function TyphoonPath({ typhoon, selected, onSelect, onPathClick }) {
         anchorX="left"
         anchorY="middle"
       >
-        {typhoon.name}
+        {typhoon.displayName || typhoon.name}
       </Text>
     </group>
   )
