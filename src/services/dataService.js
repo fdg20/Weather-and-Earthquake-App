@@ -132,9 +132,19 @@ export async function fetchWeatherData(lat, lon) {
   }
 
   try {
+    // Add timeout to prevent hanging requests
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 8000) // 8 second timeout
+    
     const response = await fetch(
-      `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${OPENWEATHER_API_KEY}&units=metric`
+      `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${OPENWEATHER_API_KEY}&units=metric`,
+      {
+        signal: controller.signal,
+        cache: 'no-cache'
+      }
     )
+    
+    clearTimeout(timeoutId)
     
     if (!response.ok) {
       throw new Error(`OpenWeather API error: ${response.status}`)
@@ -156,7 +166,11 @@ export async function fetchWeatherData(lat, lon) {
       country: data.sys?.country || '',
     }
   } catch (error) {
-    console.error('Error fetching weather data:', error)
+    if (error.name === 'AbortError') {
+      console.error('Weather data request timed out')
+    } else {
+      console.error('Error fetching weather data:', error)
+    }
     return null
   }
 }
@@ -168,9 +182,19 @@ export async function fetchWeatherForecast(lat, lon) {
   }
 
   try {
+    // Add timeout to prevent hanging requests
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 8000) // 8 second timeout
+    
     const response = await fetch(
-      `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&appid=${OPENWEATHER_API_KEY}&units=metric`
+      `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&appid=${OPENWEATHER_API_KEY}&units=metric`,
+      {
+        signal: controller.signal,
+        cache: 'no-cache'
+      }
     )
+    
+    clearTimeout(timeoutId)
     
     if (!response.ok) {
       throw new Error(`OpenWeather Forecast API error: ${response.status}`)
@@ -186,7 +210,11 @@ export async function fetchWeatherForecast(lat, lon) {
       humidity: item.main.humidity,
     }))
   } catch (error) {
-    console.error('Error fetching weather forecast:', error)
+    if (error.name === 'AbortError') {
+      console.error('Weather forecast request timed out')
+    } else {
+      console.error('Error fetching weather forecast:', error)
+    }
     return null
   }
 }

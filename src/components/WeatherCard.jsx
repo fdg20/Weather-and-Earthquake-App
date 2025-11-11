@@ -9,17 +9,43 @@ function WeatherCard({ lat, lon, cityName }) {
   const [error, setError] = useState(null)
 
   useEffect(() => {
+    let timeoutId = null
+    
     const loadWeather = async () => {
       setLoading(true)
       setError(null)
+      
+      // Add timeout to prevent infinite loading
+      timeoutId = setTimeout(() => {
+        setLoading(false)
+        setError('Weather data request timed out')
+      }, 10000) // 10 second timeout
+      
       try {
         const [currentWeather, forecastData] = await Promise.all([
           fetchWeatherData(lat, lon),
           fetchWeatherForecast(lat, lon)
         ])
+        
+        if (timeoutId) {
+          clearTimeout(timeoutId)
+          timeoutId = null
+        }
+        
+        // Check if API key is configured
+        if (currentWeather === null && !import.meta.env.VITE_OPENWEATHER_API_KEY) {
+          setError('OpenWeather API key not configured')
+          setLoading(false)
+          return
+        }
+        
         setWeather(currentWeather)
         setForecast(forecastData)
       } catch (err) {
+        if (timeoutId) {
+          clearTimeout(timeoutId)
+          timeoutId = null
+        }
         setError('Failed to load weather data')
         console.error('Weather fetch error:', err)
       } finally {
@@ -29,6 +55,16 @@ function WeatherCard({ lat, lon, cityName }) {
 
     if (lat && lon) {
       loadWeather()
+    } else {
+      setLoading(false)
+    }
+    
+    // Cleanup timeout on unmount or when dependencies change
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+      }
+      setLoading(false)
     }
   }, [lat, lon])
 
@@ -40,7 +76,22 @@ function WeatherCard({ lat, lon, cityName }) {
     )
   }
 
-  if (error || !weather) {
+  if (error) {
+    return (
+      <div className="weather-card">
+        <div className="weather-error">
+          <p>⚠️ {error}</p>
+          {error.includes('API key') && (
+            <p style={{ fontSize: '12px', marginTop: '8px', opacity: 0.8 }}>
+              Please configure VITE_OPENWEATHER_API_KEY in your .env file
+            </p>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  if (!weather) {
     return null // Don't show card if no weather data
   }
 

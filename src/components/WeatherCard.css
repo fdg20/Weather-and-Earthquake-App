@@ -16,6 +16,17 @@
   color: rgba(255, 255, 255, 0.8);
 }
 
+.weather-error {
+  text-align: center;
+  padding: 20px;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.weather-error p {
+  margin: 8px 0;
+  line-height: 1.5;
+}
+
 .weather-header {
   margin-bottom: 20px;
   text-align: center;
