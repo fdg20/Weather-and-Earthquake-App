@@ -194,15 +194,28 @@ export async function fetchWeatherForecast(lat, lon) {
 // Fetch real-time earthquake data from USGS (last 7 days only)
 export async function fetchEarthquakes(minMagnitude = 4.5, limit = 50) {
   try {
+    // Use the 7-day feed which includes all earthquakes from the past 7 days
     const response = await fetch(
-      `https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/${minMagnitude}_week.geojson`
+      `https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/${minMagnitude}_week.geojson`,
+      {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+        },
+        cache: 'no-cache'
+      }
     )
     
     if (!response.ok) {
-      throw new Error('Failed to fetch earthquake data')
+      throw new Error(`Failed to fetch earthquake data: ${response.status}`)
     }
     
     const data = await response.json()
+    
+    if (!data || !data.features || !Array.isArray(data.features)) {
+      console.warn('Invalid earthquake data format')
+      return []
+    }
     
     // Calculate 7 days ago timestamp
     const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000)
@@ -210,39 +223,50 @@ export async function fetchEarthquakes(minMagnitude = 4.5, limit = 50) {
     // Transform USGS data to our format and filter to last 7 days
     const earthquakes = data.features
       .map((feature, index) => {
-        const [lon, lat, depth] = feature.geometry.coordinates
-        const props = feature.properties
-        const eventTime = new Date(props.time).getTime()
-        
-        // Filter to only last 7 days
-        if (eventTime < sevenDaysAgo) {
+        try {
+          const [lon, lat, depth] = feature.geometry.coordinates
+          const props = feature.properties
+          const eventTime = props.time ? new Date(props.time).getTime() : Date.now()
+          
+          // Filter to only last 7 days
+          if (eventTime < sevenDaysAgo) {
+            return null
+          }
+          
+          // Validate magnitude
+          if (!props.mag || props.mag < minMagnitude) {
+            return null
+          }
+          
+          // Get location name (try to extract from place or use coordinates)
+          let location = props.place || `${lat.toFixed(2)}°N, ${lon.toFixed(2)}°E`
+          // Remove distance prefix if present (e.g., "25km S of ...")
+          location = location.replace(/^\d+km\s+[NESW]+\s+of\s+/i, '')
+          
+          return {
+            id: feature.id || `eq-${index}-${Date.now()}`,
+            lat,
+            lon,
+            magnitude: props.mag,
+            depth: Math.round(Math.abs(depth)),
+            location,
+            time: new Date(props.time),
+          }
+        } catch (err) {
+          console.error('Error processing earthquake feature:', err)
           return null
         }
-        
-        // Get location name (try to extract from place or use coordinates)
-        let location = props.place || `${lat.toFixed(2)}°N, ${lon.toFixed(2)}°E`
-        // Remove distance prefix if present (e.g., "25km S of ...")
-        location = location.replace(/^\d+km\s+[NESW]+\s+of\s+/i, '')
-        
-        return {
-          id: feature.id || `eq-${index}`,
-          lat,
-          lon,
-          magnitude: props.mag,
-          depth: Math.round(depth),
-          location,
-          time: new Date(props.time),
-        }
       })
-      .filter(eq => eq !== null) // Remove null entries
+      .filter(eq => eq !== null && eq.magnitude >= minMagnitude) // Remove null entries and filter by magnitude
       .sort((a, b) => b.magnitude - a.magnitude) // Sort by magnitude descending
       .slice(0, limit) // Limit results
     
+    console.log(`Fetched ${earthquakes.length} earthquakes from USGS`)
     return earthquakes
   } catch (error) {
     console.error('Error fetching earthquakes:', error)
-    // Return sample data as fallback
-    return getSampleEarthquakes()
+    // Return empty array instead of sample data to show no data
+    return []
   }
 }
 
@@ -253,86 +277,104 @@ export async function fetchTyphoons() {
     // 1. Try JTWC data (via public endpoints)
     // 2. Try JMA data
     // 3. Try weather APIs with tropical cyclone data
-    // 4. Fall back to sample data
+    // 4. Fall back to empty array (no active typhoons)
     
     const typhoons = await fetchTyphoonDataFromAPI()
+    console.log(`Fetched ${typhoons.length} typhoons`)
     return typhoons
   } catch (error) {
     console.error('Error fetching typhoons:', error)
-    // Return sample data as fallback
-    return getSampleTyphoons()
+    // Return empty array instead of sample data
+    return []
   }
 }
 
 // Try to fetch from multiple typhoon data sources
 async function fetchTyphoonDataFromAPI() {
-  // Try PAGASA data first (Philippines weather agency)
+  // Try using a CORS proxy for JTWC data (Joint Typhoon Warning Center)
   try {
-    const pagasaData = await fetchPAGASAData()
-    if (pagasaData && pagasaData.length > 0) {
-      return pagasaData
-    }
-  } catch (error) {
-    console.log('PAGASA fetch failed, trying alternatives:', error)
-  }
-  
-  // Try using a CORS proxy for JTWC data
-  try {
-    // Using a public CORS proxy (you may want to set up your own in production)
     const proxyUrl = 'https://api.allorigins.win/raw?url='
     const jtwcUrl = encodeURIComponent('https://www.metoc.navy.mil/jtwc/products/active_storms.json')
-    const response = await fetch(proxyUrl + jtwcUrl)
+    const response = await fetch(proxyUrl + jtwcUrl, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+      },
+      cache: 'no-cache'
+    })
     
     if (response.ok) {
       const data = await response.json()
       const jtwcData = parseJTWCData(data)
       if (jtwcData && jtwcData.length > 0) {
+        console.log('Successfully fetched typhoon data from JTWC')
         return jtwcData
       }
     }
   } catch (error) {
-    console.log('JTWC fetch failed, trying alternatives:', error)
+    console.log('JTWC fetch failed, trying alternatives:', error.message)
   }
   
-  // Try JMA data with CORS proxy
+  // Try JMA (Japan Meteorological Agency) data with CORS proxy
   try {
     const proxyUrl = 'https://api.allorigins.win/raw?url='
     const jmaUrl = encodeURIComponent('https://www.jma.go.jp/en/typh/position.json')
-    const response = await fetch(proxyUrl + jmaUrl)
+    const response = await fetch(proxyUrl + jmaUrl, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+      },
+      cache: 'no-cache'
+    })
     
     if (response.ok) {
       const data = await response.json()
       const jmaData = parseJMAData(data)
       if (jmaData && jmaData.length > 0) {
+        console.log('Successfully fetched typhoon data from JMA')
         return jmaData
       }
     }
   } catch (error) {
-    console.log('JMA fetch failed, trying alternatives:', error)
+    console.log('JMA fetch failed, trying alternatives:', error.message)
+  }
+  
+  // Try PAGASA data (Philippines weather agency)
+  try {
+    const pagasaData = await fetchPAGASAData()
+    if (pagasaData && pagasaData.length > 0) {
+      console.log('Successfully fetched typhoon data from PAGASA')
+      return pagasaData
+    }
+  } catch (error) {
+    console.log('PAGASA fetch failed, trying alternatives:', error.message)
   }
   
   // Try WeatherAPI.com tropical cyclone data (if API key available)
   try {
     const weatherApiData = await fetchWeatherAPITyphoons()
     if (weatherApiData && weatherApiData.length > 0) {
+      console.log('Successfully fetched typhoon data from WeatherAPI')
       return weatherApiData
     }
   } catch (error) {
-    console.log('WeatherAPI fetch failed:', error)
+    console.log('WeatherAPI fetch failed:', error.message)
   }
   
   // Try typhoon tracking APIs
   try {
     const trackingData = await fetchTyphoonTrackingAPI()
     if (trackingData && trackingData.length > 0) {
+      console.log('Successfully fetched typhoon data from tracking API')
       return trackingData
     }
   } catch (error) {
-    console.log('Typhoon tracking API failed:', error)
+    console.log('Typhoon tracking API failed:', error.message)
   }
   
-  // Fall back to enhanced sample data that updates based on current date
-  return getSampleTyphoons()
+  // If all APIs fail, return empty array (no active typhoons)
+  console.log('No active typhoons found or all APIs failed')
+  return []
 }
 
 // Fetch typhoon data from PAGASA (Philippine Atmospheric, Geophysical and Astronomical Services Administration)
@@ -607,52 +649,113 @@ async function fetchJTWCData() {
 function parseJTWCData(data) {
   // JTWC data structure varies, this is a generic parser
   // Adjust based on actual JTWC response format
-  if (!data || !Array.isArray(data)) {
+  if (!data) {
     return []
   }
   
-  return data.map((storm, index) => {
-    const now = new Date()
-    const currentPos = storm.currentPosition || storm.position || { lat: 0, lon: 0 }
-    const path = storm.path || storm.track || []
-    
-    const localName = getLocalName(storm.name || storm.internationalName || '')
-    const isInside = isInsidePAR(currentPos.lat, currentPos.lon)
-    
-    // Calculate distance to Philippines
-    const philippinesLat = 12.8797
-    const philippinesLon = 121.7740
-    const distance = calculateDistance(
-      currentPos.lat, currentPos.lon,
-      philippinesLat, philippinesLon
+  // Handle different data structures
+  let storms = []
+  if (Array.isArray(data)) {
+    storms = data
+  } else if (data.storms && Array.isArray(data.storms)) {
+    storms = data.storms
+  } else if (data.activeStorms && Array.isArray(data.activeStorms)) {
+    storms = data.activeStorms
+  } else if (typeof data === 'object') {
+    // Try to extract storms from object keys
+    storms = Object.values(data).filter(item => 
+      item && (item.name || item.internationalName || item.position)
     )
-    
-    return {
-      id: storm.id || `typhoon-${index}`,
-      name: storm.name || storm.internationalName || 'Unknown',
-      localName: localName,
-      currentPosition: {
-        lat: currentPos.lat,
-        lon: currentPos.lon,
-        intensity: storm.intensity || storm.category || 2,
-        windSpeed: storm.windSpeed || storm.maxWindSpeed || 0,
-      },
-      path: path.map(point => ({
-        lat: point.lat || point[0],
-        lon: point.lon || point[1],
-        intensity: point.intensity || point.category || 2,
-        timestamp: point.timestamp || point.time || now.getTime(),
-      })),
-      isInsidePAR: isInside,
-      displayName: isInside && localName 
-        ? `${localName} (${storm.name || storm.internationalName})` 
-        : (storm.name || storm.internationalName),
-      approachingPhilippines: distance < 2000, // Within 2000km
-      distanceToPhilippines: Math.round(distance),
-      estimatedArrival: storm.estimatedArrival ? new Date(storm.estimatedArrival) : null,
-      lastUpdate: storm.lastUpdate ? new Date(storm.lastUpdate) : now,
+  }
+  
+  if (storms.length === 0) {
+    return []
+  }
+  
+  const now = new Date()
+  const sevenDaysAgo = now.getTime() - (7 * 24 * 60 * 60 * 1000)
+  const philippinesLat = 12.8797
+  const philippinesLon = 121.7740
+  
+  return storms.map((storm, index) => {
+    try {
+      const currentPos = storm.currentPosition || storm.position || storm.lat && storm.lon 
+        ? { lat: storm.lat, lon: storm.lon } 
+        : { lat: 0, lon: 0 }
+      
+      // Extract path/track data
+      let path = storm.path || storm.track || storm.forecast || []
+      
+      // If path is empty, generate a simple path from current position
+      if (path.length === 0 && currentPos.lat !== 0 && currentPos.lon !== 0) {
+        // Generate a simple path for the last 7 days
+        path = []
+        for (let i = 0; i < 7; i++) {
+          const timestamp = sevenDaysAgo + (i * 24 * 60 * 60 * 1000)
+          path.push({
+            lat: currentPos.lat - (7 - i) * 0.2,
+            lon: currentPos.lon - (7 - i) * 0.2,
+            intensity: Math.max(2, 5 - i * 0.3),
+            timestamp
+          })
+        }
+      }
+      
+      const stormName = storm.name || storm.internationalName || storm.stormName || `Storm ${index + 1}`
+      const localName = getLocalName(stormName)
+      const isInside = isInsidePAR(currentPos.lat, currentPos.lon)
+      const distance = calculateDistance(
+        currentPos.lat, currentPos.lon,
+        philippinesLat, philippinesLon
+      )
+      
+      // Filter path to only last 7 days
+      const filteredPath = path
+        .map(point => ({
+          lat: point.lat || point[0] || currentPos.lat,
+          lon: point.lon || point[1] || currentPos.lon,
+          intensity: point.intensity || point.category || storm.intensity || storm.category || 2,
+          timestamp: point.timestamp || point.time || (point.date ? new Date(point.date).getTime() : now.getTime()),
+        }))
+        .filter(point => point.timestamp >= sevenDaysAgo)
+      
+      // Ensure current position is in path
+      if (filteredPath.length === 0 || 
+          (filteredPath[filteredPath.length - 1].lat !== currentPos.lat || 
+           filteredPath[filteredPath.length - 1].lon !== currentPos.lon)) {
+        filteredPath.push({
+          lat: currentPos.lat,
+          lon: currentPos.lon,
+          intensity: storm.intensity || storm.category || 2,
+          timestamp: now.getTime()
+        })
+      }
+      
+      return {
+        id: storm.id || `typhoon-${index}-${Date.now()}`,
+        name: stormName,
+        localName: localName,
+        currentPosition: {
+          lat: currentPos.lat,
+          lon: currentPos.lon,
+          intensity: storm.intensity || storm.category || filteredPath[filteredPath.length - 1]?.intensity || 2,
+          windSpeed: storm.windSpeed || storm.maxWindSpeed || storm.wind || 0,
+        },
+        path: filteredPath,
+        isInsidePAR: isInside,
+        displayName: isInside && localName 
+          ? `${localName} (${stormName})` 
+          : stormName,
+        approachingPhilippines: distance < 2000, // Within 2000km
+        distanceToPhilippines: Math.round(distance),
+        estimatedArrival: storm.estimatedArrival ? new Date(storm.estimatedArrival) : null,
+        lastUpdate: storm.lastUpdate ? new Date(storm.lastUpdate) : now,
+      }
+    } catch (err) {
+      console.error('Error parsing storm data:', err)
+      return null
     }
-  })
+  }).filter(storm => storm !== null)
 }
 
 // Fetch from JMA (Japan Meteorological Agency)

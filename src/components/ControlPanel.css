@@ -17,21 +17,16 @@
 /* Mobile view - ensure globe is visible behind sidebar */
 @media (max-width: 768px) {
   .control-panel {
-    width: calc(100vw - 40px);
+    width: calc(100vw - 20px);
     max-width: 350px;
-    max-height: calc(100vh - 40px);
+    max-height: calc(100vh - 20px);
     position: fixed;
     top: 10px;
     right: 10px;
+    left: auto;
     z-index: 200;
     pointer-events: auto;
-  }
-  
-  /* Ensure canvas/globe is behind control panel but visible */
-  .app-container canvas {
-    z-index: 1 !important;
-    position: fixed !important;
-    pointer-events: auto;
+    background: rgba(20, 20, 30, 0.98);
   }
 }
 
@@ -413,13 +408,4 @@
   margin: 4px 0;
 }
 
-@media (max-width: 768px) {
-  .control-panel {
-    width: calc(100vw - 40px);
-    max-width: 350px;
-    top: 10px;
-    right: 10px;
-    left: 10px;
-  }
-}
 
