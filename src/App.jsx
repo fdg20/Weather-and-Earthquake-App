@@ -302,17 +302,38 @@ function App() {
         <div className="report-popup-overlay" onClick={() => setSelectedReport(null)}>
           <div className="report-popup" onClick={(e) => e.stopPropagation()}>
             <button className="close-button" onClick={() => setSelectedReport(null)}>×</button>
-            <h3>{selectedReport.name}</h3>
-            <p><strong>Address:</strong> {selectedReport.address}</p>
-            <p><strong>Issue:</strong> {selectedReport.issueType}</p>
-            {selectedReport.provider && <p><strong>Provider:</strong> {selectedReport.provider}</p>}
-            {selectedReport.description && <p><strong>Description:</strong> {selectedReport.description}</p>}
-            {selectedReport.imagePreview && (
-              <div className="report-image">
-                <img src={selectedReport.imagePreview} alt="Report" />
+            <h3>📍 {selectedReport.name || 'User Report'}</h3>
+            <div style={{ marginBottom: '16px', paddingBottom: '16px', borderBottom: '1px solid #eee' }}>
+              <p><strong>📍 Location:</strong></p>
+              <p style={{ marginLeft: '16px' }}>
+                {selectedReport.address || 'No address provided'}
+              </p>
+              {selectedReport.lat && selectedReport.lon && (
+                <p style={{ marginLeft: '16px', fontSize: '12px', color: '#888' }}>
+                  Coordinates: {selectedReport.lat.toFixed(4)}°N, {selectedReport.lon.toFixed(4)}°E
+                </p>
+              )}
+            </div>
+            <p><strong>Issue Type:</strong> {selectedReport.issueType || 'Not specified'}</p>
+            {selectedReport.provider && <p><strong>Service Provider:</strong> {selectedReport.provider}</p>}
+            {selectedReport.description && (
+              <div style={{ marginTop: '12px' }}>
+                <p><strong>Description:</strong></p>
+                <p style={{ marginLeft: '16px', fontStyle: 'italic', color: '#666' }}>
+                  {selectedReport.description}
+                </p>
               </div>
             )}
-            <p><small>Reported: {new Date(selectedReport.timestamp).toLocaleString()}</small></p>
+            {selectedReport.imagePreview && (
+              <div className="report-image" style={{ marginTop: '16px' }}>
+                <img src={selectedReport.imagePreview} alt="Report evidence" style={{ maxWidth: '100%', borderRadius: '8px' }} />
+              </div>
+            )}
+            <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #eee' }}>
+              <p><small style={{ color: '#888' }}>
+                📅 Reported: {new Date(selectedReport.timestamp).toLocaleString()}
+              </small></p>
+            </div>
           </div>
         </div>
       )}
